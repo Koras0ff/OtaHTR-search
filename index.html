@@ -1,0 +1,1582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ottoman Text Search</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Noto+Naskh+Arabic:wght@400;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f4f3ef;--surface:#fff;--border:#d3d0c9;--text:#1d1c1a;--dim:#75716b;--faint:#a9a49d;
+  --accent:#3a6ea5;--hit:#b84800;
+  --region:rgba(60,120,200,.10);--region-line:rgba(40,90,160,.55);
+  --line:rgba(120,120,120,.05);--line-line:rgba(90,90,90,.40);
+  --hl:rgba(255,170,0,.30);--hl-line:rgba(200,110,0,.85);
+  --hl-active:rgba(255,90,0,.45);--hl-active-line:rgba(180,60,0,1);
+  --ocr:'Amiri','Noto Naskh Arabic','Scheherazade New','Traditional Arabic',serif;
+}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:13px;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+#bar{display:flex;align-items:center;gap:7px;padding:6px 10px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap}
+#bar .title{font-weight:700;letter-spacing:.03em;color:var(--dim);margin-right:4px}
+.sep{width:1px;height:20px;background:var(--border)}
+input[type=text],select{height:28px;border:1px solid var(--border);border-radius:4px;padding:0 8px;font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;outline:none}
+input[type=text]:focus,select:focus{border-color:#999;background:#fff}
+#q{flex:1;min-width:200px;max-width:460px;direction:rtl;font-size:15px}
+#q::placeholder{color:var(--faint);direction:rtl}
+button{height:28px;min-width:28px;padding:0 9px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);cursor:pointer;font-size:12px;font-family:inherit}
+button:hover{background:var(--bg);border-color:#999}
+button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+label.chk{display:flex;align-items:center;gap:4px;color:var(--dim);cursor:pointer;user-select:none;font-size:12px}
+#count{font-size:12px;color:var(--dim);min-width:72px}
+.mssw{display:inline-block;width:12px;height:10px;border-radius:2px;flex-shrink:0;border:1px solid rgba(0,0,0,.2)}
+#zoomlbl{font-size:11px;color:var(--dim);min-width:36px;text-align:center}
+#layout{display:flex;flex:1;overflow:hidden}
+#side{width:190px;background:#e9e7e1;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
+#side .head{padding:7px 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--dim);background:#deddd6;border-bottom:1px solid var(--border)}
+#workSel{margin:8px;width:calc(100% - 16px)}
+#workInfo{display:none;padding:7px 10px;border-bottom:1px solid var(--border);background:#eceae4;font-size:11px;color:var(--dim);line-height:1.45}
+#workInfo .wt{font-weight:600;color:var(--text);font-size:12px;margin-bottom:2px}
+#workInfo a{color:var(--accent)}
+#pages{overflow-y:auto;flex:1 1 auto;min-height:48px;padding:6px 0}
+#pages::-webkit-scrollbar{width:6px}#pages::-webkit-scrollbar-thumb{background:#c2bfb8;border-radius:3px}
+/* drag handle to resize the transcription (#info) panel below it */
+#infoResizer{height:8px;flex-shrink:0;cursor:ns-resize;background:#deddd6;border-top:1px solid var(--border);border-bottom:1px solid var(--border);position:relative}
+#infoResizer:hover{background:#d3d1c9}
+#infoResizer::after{content:'';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:34px;height:3px;border-radius:2px;background:#b0aca4}
+body.resizing{cursor:ns-resize;user-select:none}
+.pi{display:flex;flex-direction:column;align-items:center;gap:4px;padding:7px 8px;cursor:pointer;user-select:none}
+.pi:hover .thumb{border-color:#888}
+.pi.active .thumb{border-color:var(--accent);box-shadow:0 0 0 2px rgba(58,110,165,.3)}
+.pi.hit .thumb{border-color:var(--hit)}
+.thumb{width:120px;border:2px solid #bdbab3;border-radius:2px;background:#fff;overflow:hidden;line-height:0;box-shadow:0 1px 3px rgba(0,0,0,.15);min-height:60px}
+.thumb img{width:100%;display:block}
+.thumb .ph{height:150px;background:#ddd;display:flex;align-items:center;justify-content:center;color:#999;font-size:10px}
+.pnum{font-size:10px;color:var(--dim)}
+.pi.active .pnum{color:var(--accent);font-weight:700}
+.badge{font-size:9px;background:var(--hit);color:#fff;border-radius:8px;padding:1px 6px;display:none}
+.pi.hit .badge{display:inline-block}
+/* lightweight text page list + search results (no preloaded thumbnails) */
+.row{padding:6px 11px;cursor:pointer;font-size:12px;border-bottom:1px solid #e0ddd6;color:var(--text)}
+.row:hover{background:#dfddd6}
+.row.active{background:var(--accent);color:#fff}
+.res{padding:7px 11px;cursor:pointer;border-bottom:1px solid #dcd9d2}
+.res:hover{background:#dfddd6}
+.res.active{background:#fff3e0;border-left:3px solid var(--hit)}
+.res .rthumb{width:100%;overflow:hidden;border:1px solid var(--border);border-radius:2px;background:#fbfbfa;margin:3px 0 4px}
+.res .crop{background-repeat:no-repeat;background-color:#fff}
+.rchip{display:inline-block;font-size:9px;line-height:1.5;padding:0 5px;border-radius:8px;color:#fff;vertical-align:middle}
+/* region-browse count summary at the top of the results list */
+#rsum{padding:8px 11px;border-bottom:1px solid #d3d0c9;background:#eef1f4}
+#rsum .rsum-h{font-size:12px;font-weight:700;color:var(--text);margin-bottom:5px}
+#rsum table{border-collapse:collapse;width:100%;font-size:11px}
+#rsum td{padding:2px 4px;border-bottom:1px solid #e0ddd6;color:var(--dim)}
+#rsum td.num{text-align:right;font-variant-numeric:tabular-nums;color:var(--text);font-weight:600}
+#rsum tr.tot td{font-weight:700;color:var(--text);border-top:1px solid #c9c6bf;border-bottom:none}
+#rsum .wn{max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rmeta{font-size:10px;color:var(--dim);margin-bottom:2px}
+.rsnip{font-size:16px;line-height:1.6;direction:rtl;text-align:right;word-break:break-word;font-family:var(--ocr)}
+.rsnip mark{background:var(--hl);padding:0 1px}
+.reshead2{padding:7px 11px;font-size:11px;color:var(--dim);font-style:italic}
+/* height is JS-controlled via the #infoResizer drag handle; scroll on BOTH axes
+   so long (non-wrapping) lines are reachable */
+#info{padding:9px 10px;height:230px;flex-shrink:0;overflow:auto;background:var(--surface)}
+#info::-webkit-scrollbar{width:8px;height:8px}#info::-webkit-scrollbar-thumb{background:#c2bfb8;border-radius:4px}
+#info .k{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);margin-bottom:4px;position:sticky;left:0}
+/* each source line stays on ONE line (no wrapping into two); the box scrolls
+   horizontally when a line is wider than the panel */
+#info .t{font-size:18px;line-height:1.9;direction:rtl;text-align:right;white-space:nowrap;font-family:var(--ocr)}
+#info .t.empty{font-size:11px;color:var(--faint);direction:ltr;text-align:left;font-style:italic;white-space:normal}
+#info .t mark{background:var(--hl);padding:0 1px}
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative}
+#backBtn{position:absolute;top:10px;left:14px;z-index:1200;height:28px;padding:0 12px;border:1px solid var(--accent);background:var(--surface);color:var(--accent);border-radius:14px;box-shadow:0 2px 8px rgba(0,0,0,.18);cursor:pointer;font-size:12px;font-family:inherit;max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#backBtn:hover{background:var(--bg)}
+#view{flex:1;overflow:auto;padding:18px;background:var(--bg)}
+#view::-webkit-scrollbar{width:9px;height:9px}#view::-webkit-scrollbar-thumb{background:var(--border)}
+#empty{color:var(--faint);text-align:center;padding-top:60px}
+#stack{display:none;flex-direction:column;align-items:center;gap:24px}
+.pg{position:relative;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.18);border:1px solid var(--border)}
+.pg::before{content:attr(data-label);position:absolute;top:-15px;left:1px;font-size:10px;color:var(--dim)}
+.pg img{display:block;width:100%;height:100%;user-select:none}
+.pg svg{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
+.pg svg rect,.pg svg polygon{pointer-events:all}
+.pg.cur{outline:2px solid var(--accent);outline-offset:1px}
+.region{stroke-width:1.8}   /* per-class colour set inline in JS */
+.region.rsel{stroke-width:3.4!important;fill-opacity:.30!important}
+/* regions matched by a search (text lives on the region, not its lines) */
+.region.rhit{stroke:var(--hl-line)!important;fill:var(--hl)!important;fill-opacity:.28!important;stroke-width:2.4!important}
+.region.rhit.active{stroke:var(--hl-active-line)!important;fill:var(--hl-active)!important;fill-opacity:.42!important;stroke-width:3.6!important}
+/* regions that have an aligned variant in another witness (Variants mode) */
+.region.rpair{stroke:#8833aa!important;fill:#8833aa!important;fill-opacity:.16!important;stroke-width:2.6!important}
+/* "view variant" button inside the transcription panel */
+#variantSlot:empty{display:none}
+.variantbtn{display:block;width:100%;box-sizing:border-box;margin:0 0 8px;height:30px;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:4px;font-size:12px;cursor:pointer;font-family:inherit;position:sticky;top:0;left:0}
+.variantbtn:hover{filter:brightness(1.06)}
+/* variant panel: counterpart image crop + OCR text */
+#variantPanel{position:fixed;top:46px;right:14px;z-index:1900;width:344px;max-height:82vh;overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:6px;box-shadow:0 8px 30px rgba(0,0,0,.24);display:none}
+#variantPanel.open{display:block}
+#variantPanel .sphead{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 11px;border-bottom:1px solid var(--border);font-weight:700;color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.05em;position:sticky;top:0;background:var(--surface)}
+#variantPanel .spclose{border:none;background:none;font-size:13px;color:var(--dim);cursor:pointer;height:auto;min-width:0;padding:0 2px}
+#variantPanel .spclose:hover{color:var(--text)}
+#variantBody{padding:9px 11px}
+#variantBody .empty{padding:14px 4px;color:var(--faint);font-style:italic;font-size:12px}
+.vcard{border:1px solid var(--border);border-radius:6px;padding:9px;margin-bottom:10px;background:#fbfbfa}
+.vhead{font-size:11px;color:var(--dim);margin-bottom:7px;line-height:1.55}
+.vsim{font-variant-numeric:tabular-nums}
+.vcrop{border:1px solid var(--border);border-radius:3px;background-repeat:no-repeat;background-color:#fff;margin-bottom:7px;max-width:100%}
+.vnoimg{font-size:11px;color:var(--faint);font-style:italic;margin-bottom:7px}
+.vtext{direction:rtl;text-align:right;font-family:var(--ocr);font-size:16px;line-height:1.7;background:#fff;border:1px solid var(--border);border-radius:3px;padding:6px 8px;max-height:220px;overflow:auto}
+.vln{white-space:nowrap}
+.vln.hit{background:var(--hl);border-radius:2px;padding:0 2px}
+.vopen{margin-top:8px;height:26px;padding:0 10px;border:1px solid var(--border);background:var(--surface);color:var(--accent);border-radius:4px;font-size:12px;cursor:pointer;font-family:inherit}
+.vopen:hover{background:var(--bg)}
+#legend .lg{display:flex;align-items:center;gap:8px;margin:3px 0;font-size:13px}
+#legend .sw{display:inline-block;width:18px;height:12px;border-radius:2px;flex-shrink:0}
+.line{fill:var(--line);stroke:var(--line-line);stroke-width:1;cursor:pointer}
+.line:hover{fill:rgba(255,200,0,.25);stroke:rgba(180,140,0,.9)}
+.sel{fill:rgba(255,200,0,.4)!important;stroke:rgba(160,120,0,1)!important;stroke-width:2}
+.hit{fill:var(--hl)!important;stroke:var(--hl-line)!important;stroke-width:1.6}
+.hit.active{fill:var(--hl-active)!important;stroke:var(--hl-active-line)!important;stroke-width:2.6}
+.pg svg foreignObject.linelabel,.pg svg foreignObject.regionlabel{pointer-events:none}
+.ll{direction:rtl;text-align:right;background:rgba(255,255,250,.94);color:#111;
+  border:1px solid rgba(0,0,0,.28);border-radius:2px;padding:.06em .25em;line-height:1.35;
+  word-break:break-word;box-sizing:border-box;width:100%;font-family:var(--ocr)}
+.rl{direction:rtl;text-align:right;background:rgba(255,255,250,.97);color:#111;
+  border:1px solid rgba(0,0,0,.38);border-radius:3px;padding:.15em .3em;
+  box-sizing:border-box;width:100%;height:100%;display:flex;flex-direction:column;
+  justify-content:space-between;overflow:hidden;font-family:var(--ocr)}
+.rl>div{word-break:break-word;line-height:1.15}
+#kb{display:none;flex-wrap:wrap;gap:4px;padding:8px 10px;background:var(--surface);border-bottom:1px solid var(--border)}
+#kb button{height:30px;min-width:30px;font-size:16px;direction:rtl}
+#kb button.util{font-size:12px;min-width:54px;color:var(--dim)}
+#tip{position:fixed;background:rgba(30,28,26,.94);color:#f0ece4;border:1px solid #555;border-radius:3px;padding:5px 9px;font-size:14px;direction:rtl;pointer-events:none;z-index:1000;display:none;max-width:380px;line-height:1.6}
+#aboutBtn{margin-left:4px}
+#about{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:2000}
+#about .card{background:var(--surface);max-width:640px;width:92%;max-height:84vh;overflow-y:auto;border-radius:6px;padding:22px 26px;box-shadow:0 8px 40px rgba(0,0,0,.3)}
+#about h2{font-size:18px;margin-bottom:10px}
+#about h3{font-size:13px;margin:14px 0 5px;color:var(--dim);text-transform:uppercase;letter-spacing:.04em}
+#about p,#about li{font-size:13px;line-height:1.6}
+#about ul{margin:4px 0 4px 18px}
+#about .close{float:right;margin-top:-6px}
+#about a{color:var(--accent)}
+.notice{background:#fff6e5;border:1px solid #e8c98a;color:#7a5a10;padding:5px 9px;border-radius:4px;font-size:12px}
+#statsPanel{position:fixed;top:46px;right:14px;z-index:1800;width:340px;max-height:72vh;overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:6px;box-shadow:0 8px 30px rgba(0,0,0,.22);display:none}
+#statsPanel.open{display:block}
+#statsPanel .sphead{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 11px;border-bottom:1px solid var(--border);font-weight:700;color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.05em;position:sticky;top:0;background:var(--surface)}
+#statsPanel .spclose{border:none;background:none;font-size:13px;color:var(--dim);cursor:pointer;height:auto;min-width:0;padding:0 2px}
+#statsPanel .spclose:hover{color:var(--text)}
+/* corpus overview (shown when nothing is searched yet) */
+.ovcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(84px,1fr));gap:7px;padding:9px 11px}
+.ovc{background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:8px 6px;text-align:center}
+.ovn{font-size:19px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.1}
+.ovl{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);margin-top:3px}
+.ovhint{padding:8px 11px 11px;font-size:11px;color:var(--faint);line-height:1.45}
+/* multi-series compare: legend + coloured lines */
+.cmpleg{display:flex;flex-wrap:wrap;gap:5px 13px;padding:7px 11px 3px}
+.cmpleg .lgi{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text)}
+.cmpleg .sw{width:14px;height:3px;border-radius:2px;flex-shrink:0}
+.cmpleg .lgt{direction:rtl;unicode-bidi:isolate;font-family:var(--ocr);font-size:14px}
+.cmpleg .lgn{color:var(--faint);font-variant-numeric:tabular-nums}
+.tplot .tdot{stroke:#fff;stroke-width:.8}
+#statsBody td .qq{direction:rtl;unicode-bidi:isolate;font-family:var(--ocr);font-size:15px}
+#statsSub{padding:7px 11px;font-size:12px;color:var(--dim);border-bottom:1px solid #ececec}
+#statsSub .qq{direction:rtl;unicode-bidi:isolate;font-family:var(--ocr);color:var(--text)}
+#statsBody table{border-collapse:collapse;width:100%;font-size:12px}
+#statsBody th,#statsBody td{padding:5px 10px;text-align:left;border-bottom:1px solid #ececec}
+#statsBody th{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);font-weight:600;position:sticky;top:33px;background:var(--surface)}
+#statsBody td.num,#statsBody th.num{text-align:right;font-variant-numeric:tabular-nums}
+#statsBody tr:hover td{background:var(--bg)}
+#statsBody tr.tot td{font-weight:700;border-top:2px solid var(--border);border-bottom:none;background:var(--surface)}
+#statsBody .wn{max-width:168px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#statsBody .empty{padding:16px 12px;color:var(--faint);font-style:italic;font-size:12px}
+#statsBody .empty .qq{direction:rtl;unicode-bidi:isolate;font-family:var(--ocr)}
+.splbl{padding:8px 11px 2px;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);font-weight:600}
+.splot{padding:0 6px}
+.undated{padding:0 11px 6px;font-size:11px;color:var(--faint)}
+.tplot{display:block;margin:2px auto}
+.tplot .gl{stroke:#ececec;stroke-width:1}
+.tplot .tline{fill:none;stroke:var(--accent);stroke-width:1.6}
+.tplot .tarea{fill:var(--accent);opacity:.10}
+.tplot .dot{fill:var(--accent);stroke:#fff;stroke-width:1}
+.tplot .yt{fill:var(--faint);font-size:8px;text-anchor:end}
+.tplot .xt{fill:var(--faint);font-size:8px;text-anchor:middle}
+/* filters panel */
+#filterPanel{position:fixed;top:46px;right:14px;z-index:1800;width:300px;max-height:74vh;overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:6px;box-shadow:0 8px 30px rgba(0,0,0,.22);display:none}
+#filterPanel.open{display:block}
+#filterPanel .sphead{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 11px;border-bottom:1px solid var(--border);font-weight:700;color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.05em;position:sticky;top:0;background:var(--surface)}
+#filterPanel .sphead .hbtns{display:flex;gap:6px;align-items:center}
+#filterPanel .spclose{border:none;background:none;font-size:13px;color:var(--dim);cursor:pointer;height:auto;min-width:0;padding:0 2px}
+#filterClear{font-size:11px;height:22px;padding:0 7px}
+#filterBody{padding:4px 0 8px}
+.frange{display:flex;align-items:center;gap:6px;padding:9px 11px;border-bottom:1px solid #ececec}
+.frange label{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);font-weight:600}
+.frange input{width:62px;height:26px}
+.facet{border-bottom:1px solid #ececec}
+.facet>summary{list-style:none;cursor:pointer;padding:7px 11px;font-size:12px;font-weight:600;color:var(--text);display:flex;align-items:center}
+.facet>summary::-webkit-details-marker{display:none}
+.facet>summary::before{content:'▸';color:var(--faint);margin-right:6px;font-size:10px}
+.facet[open]>summary::before{content:'▾'}
+.facet .fc{color:var(--accent);font-weight:700}
+.facList{padding:2px 0 6px}
+.frow{display:flex;align-items:center;gap:7px;padding:3px 11px 3px 22px;font-size:12px;cursor:pointer}
+.frow:hover{background:var(--bg)}
+.frow input{margin:0;flex-shrink:0}
+.frow .fv{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* about: works table */
+#aboutWorks{margin-top:6px;max-height:300px;overflow:auto;border:1px solid var(--border);border-radius:5px}
+table.awt{border-collapse:collapse;width:100%;font-size:12px}
+table.awt th,table.awt td{padding:5px 9px;text-align:left;border-bottom:1px solid #ececec;vertical-align:top}
+table.awt th{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);position:sticky;top:0;background:var(--surface)}
+table.awt td.num,table.awt th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+table.awt a{color:var(--accent)}
+table.awt .dim{color:var(--faint)}
+#workInfo .wmeta{color:var(--dim)}
+#workInfo .wsub{color:var(--faint);font-style:italic;margin-top:2px}
+#workInfo .wnote{color:var(--faint);font-size:10px;margin-top:3px}
+</style>
+</head>
+<body>
+<div id="bar">
+  <span class="title">Ottoman Text Search</span>
+  <input id="q" type="text" placeholder="Search… separate terms with / to compare" autocomplete="off" spellcheck="false">
+  <button id="prev" title="Previous match">↑</button>
+  <button id="next" title="Next match">↓</button>
+  <button id="clear" title="Clear">✕</button>
+  <span id="count"></span>
+  <button id="filterBtn" title="Choose which works and region types to search, plus metadata filters">⛃ Filters</button>
+  <button id="browseBtn" title="Step through every instance of the selected region type(s) within the selected works, one by one">❒ Browse</button>
+  <button id="pairsBtn" title="Step through only the lines/regions that have an aligned variant in another witness" style="display:none">⇄ Variants</button>
+  <button id="statsBtn" title="Match statistics by work">▦ Stats</button>
+  <div class="sep"></div>
+  <label class="chk"><input type="checkbox" id="rx"> regex</label>
+  <label class="chk"><input type="checkbox" id="norm" checked> normalize</label>
+  <div class="sep"></div>
+  <label class="chk"><input type="checkbox" id="showR" checked> regions</label>
+  <label class="chk"><input type="checkbox" id="showL" checked> lines</label>
+  <div class="sep"></div>
+  <button id="zout">−</button><span id="zoomlbl">100%</span><button id="zin">+</button><button id="zfit" title="Fit width">Fit</button>
+  <button id="aboutBtn">About</button>
+</div>
+<div id="kb"></div>
+<div id="layout">
+  <div id="side">
+    <div class="head">Work</div>
+    <select id="workSel"></select>
+    <div id="workInfo"></div>
+    <div class="head" id="listHead">Pages</div>
+    <div id="pages"></div>
+    <div id="infoResizer" title="Drag to resize the transcription panel"></div>
+    <div id="info"><div id="variantSlot"></div><div class="k"></div><div class="t empty">Click a line to see its transcription</div></div>
+  </div>
+  <div id="main"><button id="backBtn" title="Return to where you were before opening the variant" style="display:none">← Back</button><div id="view"><div id="empty">Loading…</div><div id="stack"></div></div></div>
+</div>
+<div id="tip"></div>
+<div id="filterPanel">
+  <div class="sphead"><span>Filters</span>
+    <span class="hbtns"><button id="filterClear" title="Clear all filters">Clear all</button>
+    <button class="spclose" id="filterClose" title="Close">✕</button></span></div>
+  <div id="filterBody"></div>
+</div>
+<div id="statsPanel">
+  <div class="sphead"><span>Match statistics</span><button class="spclose" id="statsClose" title="Close">✕</button></div>
+  <div id="statsBody"></div>
+</div>
+<div id="variantPanel">
+  <div class="sphead"><span id="variantSub">Variant</span><button class="spclose" id="variantClose" title="Close">✕</button></div>
+  <div id="variantBody"></div>
+</div>
+<div id="about"><div class="card">
+  <button class="close" onclick="document.getElementById('about').style.display='none'">✕</button>
+  <h2>About this tool</h2>
+  <p>A search and browsing interface for OCR-transcribed Ottoman Turkish handwritten works. Page images are
+     shown with their detected regions and lines; the transcriptions are searchable across one or all works.</p>
+    <p>The OCR model works on text regions in multi-line level. This solves the issue of line segmentation for Ottoman Turkish manuscripts with complext layout.</p>
+    <p>This is an experimentary work on the use of OCR for handwritten Ottoman Turkish documents. Thus, the OCR'd output may not be good enough.</p>
+  <h3>How to use</h3>
+  <ul>
+    <li><b>Choose a work</b> from the <i>Work</i> menu, then scroll the pages (or click a thumbnail / use ↑ ↓).</li>
+    <li><b>Search</b> any character, word, or phrase. Use <b>regex</b> for patterns (e.g. <code>قر.ن</code>),
+        and <b>normalize</b> to ignore ye/kef variants and ZWNJ. Separate several terms with <b>/</b>
+        (e.g. <code>variant₁ / variant₂</code>) to search them together and compare them in <b>▦ Stats</b>;
+        each term can itself be a regex, and <code>\/</code> matches a literal slash.
+        Search covers both line-level and region-level transcriptions, so text the model
+        only captured at the region level is still found (its region is highlighted).</li>
+    <li><b>⛃ Filters</b> is where you set the <b>scope</b> and narrow the corpus. Under <i>Search &amp; browse scope</i>, tick <b>Regions</b> to limit which region types are searched/browsed (e.g. only footnotes) and <b>Works</b> to limit which works — leaving a section untouched means “all”. Under <i>Metadata filters</i> you can further narrow by year, genre, author, publisher, translator, or subject. The button shows how many works are in scope.</li>
+    <li><b>❒ Browse</b> steps through every instance of the selected region type(s) within the selected works, <b>one at a time</b>. Pick your Regions (and, if you like, Works) in <b>⛃ Filters</b>, then click Browse: the first instance opens on the page and the sidebar lists them all with a cropped thumbnail and per-work counts. Move through them with ↑ / ↓, or click any to jump to it.</li>
+    <li><b>⇄ Variants</b> (shown when a cross-witness alignment is available) steps through only the lines/regions that have a matching variant in another witness, highlighting them in purple. Whenever you select a region or line that has a variant, a <b>⇄ View variant</b> button appears in the transcription box; clicking it opens a panel with the counterpart's <b>page image</b> and <b>transcription</b> (matched lines lit), and an <i>Open in this witness</i> link to jump there.</li>
+    <li>Step through search matches with ↑ / ↓ (or Enter / Shift+Enter); matched lines are highlighted on the page.</li>
+    <li>Toggle the <b>regions</b> and <b>lines</b> overlays. Click a line to read its transcription; hover for a tooltip. You can click to both text regions and lines. There is always a transcription on region-level while line-level transcription sometimes misses.</li>
+    <li>The transcription box at the bottom-left scrolls (each line is kept on its own line — scroll sideways for long lines). <b>Drag the grey bar</b> above it up or down to give the transcription more or less room.</li>
+    <li><b>▦ Stats</b> opens on a <b>corpus overview</b> (works, pages, regions, lines and words, with a per-work breakdown) when nothing is searched. Once you search, it shows how often the term occurs over time and across works. To compare <b>variants</b>, put several terms in the search bar separated by <b>/</b> — each is plotted as its own line so you can see how they competed through time.</li>
+    <li>The on-screen <b>Ottoman-Turkish keyboard opens automatically when you click the search bar</b> and hides when you click away. <b>Fit</b> fits the page to the window.</li>
+  </ul>
+  <h3>Comparing witnesses (variants)</h3>
+  <p>When two works are different witnesses of the same text — for example two manuscripts of the
+     <i>Dîvân-ı Bâkî</i> — their lines are aligned in advance so their readings can be compared. Lines
+     or regions that have a counterpart in another witness are marked; selecting one reveals a
+     <b>⇄ View variant</b> button that opens the other witness's <b>page image</b> and <b>transcription</b>
+     (matched lines lit) in a side panel, with a link to jump there. <b>⇄ Variants</b> mode steps through
+     only these aligned regions, presenting them in <b>right-to-left reading order</b> — the right column
+     of a page before the left. After you jump into a witness, a <b>← Back</b> button (top-left of the
+     page view) returns you to the exact line you were reading before.</p>
+  <p><b>How the pairs are computed.</b> Alignment is calculated separately;
+     the interface only loads its result. The unit of comparison is a single <b>line</b> — each region's
+     transcription split on its line breaks. Only <b>running text</b>, <b>headings</b>
+     and <b>marginalia</b> are aligned; page numbers, and catchwords are ignored.</p>
+  <p><b>Reading order.</b> Poetry here is usually set in <b>two columns</b>: the right column often carries a poem's
+     odd lines (1st, 3rd, 5th …) and the left column its even lines (2nd, 4th, 6th …) considering the beyt structure is used, read together as
+     couplets. Each page's lines are first put back into true reading order — two side-by-side columns are
+     <b>interleaved right-to-left</b> (right line 1, left line 1, right line 2, …), headings stay within the
+     running text at their position, and marginalia are kept as a separate stream after the main text — so a
+     witness is compared as it is read, not one whole column then the other.</p>
+  <p><b>Matching.</b> The two ordered line sequences are aligned with an <b>order-preserving global alignment</b>
+     (Needleman–Wunsch): each line is matched to at most one line in the other witness, the reading order is
+     never crossed, and lines with no good counterpart are left as gaps. The score is a normalized character
+     similarity (Python's <code>difflib.SequenceMatcher</code> ratio); for matching <i>only</i>, the text is
+     normalized — ye/kef spellings and ZWNJ are unified and vowel marks / tatweel / punctuation are stripped —
+     while the displayed text is left untouched. A pair is kept only when its similarity clears a threshold
+     (currently 0.55), so noisy near-misses are dropped rather than forced.</p>
+  <p><b>Caveats.</b> Coverage is partial: it depends on how much of each witness the OCR transcribed and on the
+     layout detection — the two columns must be segmented correctly for the interleaving to be right, and where
+     a manuscript re-orders its poems the order-preserving matcher can miss the transposed passages. Because everything is automated, there may be some mistakes.</p>
+  <h3>Region colours</h3>
+  <p>Each region type is outlined in its own colour-blind-friendly colour:</p>
+  <div id="legend"></div>
+  <h3>Works in this collection</h3>
+  <p>Titles link to the source scan; author names link to their VIAF authority record where available.</p>
+  <p>More works will be added to this interface.</p>
+  <div id="aboutWorks"></div>
+  <h3>Contact</h3>
+  <p>Enes Yılandiloğlu &nbsp;·&nbsp; <a href="mailto:enes.yilandiloglu@helsinki.fi">enes.yilandiloglu@helsinki.fi</a></p>
+</div></div>
+<script src="data/manifest.js"></script>
+<script>
+const CONTINUOUS = true;   // true = scroll through pages, false = one page at a time
+const $ = id => document.getElementById(id);
+// Paul Tol colour-blind-safe palette, one colour per region class
+const REGION_COLORS={text_column:'#4477AA',heading:'#EE6677',header:'#EE8866',
+  footnote:'#228833',page_number:'#66CCEE',marginalia:'#AA3377',catch_word:'#CCBB44',
+  TOC:'#009988',image:'#BBBBBB',_d:'#777777'};
+const REGION_LABELS={text_column:'Running text',heading:'Heading',header:'Header',
+  footnote:'Footnote',page_number:'Page number',marginalia:'Marginalia',
+  catch_word:'Catchword',TOC:'Table of contents',image:'Image'};
+const REGION_ORDER=['text_column','header','heading','page_number','marginalia',
+  'catch_word','footnote','TOC','image'];
+function norm(s){ return (s||"").replace(/ى/g,"ی").replace(/ي/g,"ی").replace(/ک/g,"ك").replace(/[‌‍]/g,""); }
+function escapeHtml(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+let MANIFEST=(window.__MANIFEST||null), META={}, IMG_BASE="img/";
+const cache={};                 // workId -> work data (pages)
+let curWork=null, curData=null, curPage=0, zoom=1, selRect=null;
+let hits=[], hitIdx=-1, io=null, ao=null;
+let regHits=[], regIdx=-1, browseMode=false;   // "browse all regions of a type" mode
+// cross-witness line/region alignment (variants)
+let ALIGN_MANIFEST=null, PAIR_INDEX={}, pairMap={};
+let pairsMode=false, pairHits=[], pairIdx=-1;
+let variantOrigin=null, navBack=[];   // "← Back" stack for the variant jumps
+let selRegions=new Set(), selWorks=new Set(), scopeIds=[];   // empty set = "all"
+// metadata filters -> "active corpus" (work ids that pass every active facet)
+let activeCorpus=[], CORPUS_YMIN=null, CORPUS_YMAX=null, FACETS={pub:[],auth:[],genre:[],trans:[],subj:[]};
+let selPub=new Set(), selAuth=new Set(), selGenre=new Set(), selTrans=new Set(), selSubj=new Set();
+let yrFrom=null, yrTo=null;
+
+// load a work's data by injecting <script src="data/<id>.js"> (sets window.__W[id]).
+// Script tags load fine over http (GitHub Pages) AND file:// (local double-click).
+function loadWork(id){
+  if(cache[id]) return Promise.resolve(cache[id]);
+  if(window.__W && window.__W[id]){ cache[id]=window.__W[id]; return Promise.resolve(cache[id]); }
+  return new Promise((resolve,reject)=>{
+    const s=document.createElement('script'); s.src='data/'+id+'.js';
+    s.onload=()=>{ cache[id]=(window.__W||{})[id]; cache[id]?resolve(cache[id]):reject(new Error('no data for '+id)); };
+    s.onerror=()=>reject(new Error('failed to load data/'+id+'.js'));
+    document.head.appendChild(s);
+  });
+}
+
+// ── init ──
+(async function(){
+  buildKeyboard();                          // always, even if data is missing
+  if(!MANIFEST){ $('empty').textContent='Could not load data/manifest.js. If you opened the file directly, serve it: run  python3 -m http.server  in this folder and open http://localhost:8000'; return; }
+  IMG_BASE=MANIFEST.imageBase||"img/";
+  MANIFEST.works.forEach(m=>{ META[m.id]=m; });
+  deriveFacets();
+  yrFrom=CORPUS_YMIN; yrTo=CORPUS_YMAX;
+  recomputeCorpus();
+  populateWorkSelect();
+  buildAboutWorks();
+  // colour legend in the About panel (all region types, fixed order)
+  const leg=$('legend');
+  REGION_ORDER.forEach(c=>{ const col=REGION_COLORS[c]||REGION_COLORS._d;
+    const row=document.createElement('div'); row.className='lg';
+    row.innerHTML=`<span class="sw" style="background:${col}22;border:2px solid ${col}"></span><span>${escapeHtml(REGION_LABELS[c]||c)}</span>`;
+    leg.appendChild(row); });
+  if(!MANIFEST.hasText){ const n=document.createElement('span'); n.className='notice';
+    n.textContent='No transcriptions yet — browsing works; search empty until OCR text exists.'; $('bar').appendChild(n); }
+  updateFilterLabel();
+  await loadAlignManifest();                 // cross-witness alignments (optional)
+  updatePairsButton();
+  if(activeCorpus.length){ selectWork(activeCorpus[0]); }
+  else $('empty').textContent='No works found.';
+})();
+
+// ── metadata facets + filters (active corpus = works passing every filter) ──
+function deriveFacets(){
+  const pub=new Set(),au=new Set(),ge=new Set(),tr=new Set(),su=new Set();
+  let ymin=Infinity,ymax=-Infinity;
+  MANIFEST.works.forEach(w=>{ const m=w.meta||{};
+    if(m.publisher) pub.add(m.publisher);
+    (m.authors||[]).forEach(a=>{ if(a.name) au.add(a.name); });
+    if(m.genre) ge.add(m.genre);
+    (m.translators||[]).forEach(t=>tr.add(t));
+    (m.subjects||[]).forEach(s=>su.add(s));
+    if(m.year_min!=null) ymin=Math.min(ymin,m.year_min);
+    if(m.year_max!=null) ymax=Math.max(ymax,m.year_max);
+  });
+  const srt=s=>[...s].sort((a,b)=>a.localeCompare(b));
+  FACETS={pub:srt(pub),auth:srt(au),genre:srt(ge),trans:srt(tr),subj:srt(su)};
+  CORPUS_YMIN=isFinite(ymin)?ymin:null; CORPUS_YMAX=isFinite(ymax)?ymax:null;
+}
+function rangeActive(){ return (CORPUS_YMIN!=null) &&
+  ((yrFrom!=null&&yrFrom>CORPUS_YMIN)||(yrTo!=null&&yrTo<CORPUS_YMAX)); }
+function workPasses(w){
+  const m=w.meta||{};
+  if(selGenre.size && !selGenre.has(m.genre)) return false;
+  if(selPub.size   && !selPub.has(m.publisher)) return false;
+  if(selAuth.size  && !(m.authors||[]).some(a=>selAuth.has(a.name))) return false;
+  if(selTrans.size && !(m.translators||[]).some(t=>selTrans.has(t))) return false;
+  if(selSubj.size  && !(m.subjects||[]).some(s=>selSubj.has(s))) return false;
+  if(rangeActive()){
+    if(m.year_min==null) return false;               // hide undated when narrowing
+    const lo=yrFrom!=null?yrFrom:-Infinity, hi=yrTo!=null?yrTo:Infinity;
+    if(m.year_max<lo || m.year_min>hi) return false;
+  }
+  return true;
+}
+function recomputeCorpus(){ activeCorpus=MANIFEST.works.filter(workPasses).map(w=>w.id); }
+function populateWorkSelect(){
+  const ws=$('workSel'); ws.innerHTML='';
+  const ids=activeCorpus.length?activeCorpus:MANIFEST.works.map(w=>w.id);
+  ids.forEach(id=>{ const m=META[id]; ws.add(new Option(m.title+' ('+m.pages+')', id)); });
+  if(ids.includes(curWork)) ws.value=curWork;
+}
+const FACET_SETS={genre:()=>selGenre,auth:()=>selAuth,pub:()=>selPub,trans:()=>selTrans,subj:()=>selSubj};
+function facetSection(title,key,items,sel){
+  if(!items.length) return '';
+  let h='<details class="facet"'+(sel.size?' open':'')+'><summary>'+escapeHtml(title)
+    +'<span class="fc" data-key="'+key+'"></span></summary><div class="facList" data-facet="'+key+'">';
+  items.forEach(v=>{ h+='<label class="frow"><input type="checkbox" value="'+escapeHtml(v)+'"'
+    +(sel.has(v)?' checked':'')+'><span class="fv" title="'+escapeHtml(v)+'">'+escapeHtml(v)+'</span></label>'; });
+  return h+'</div></details>';
+}
+function renderFilters(){
+  const body=$('filterBody');
+  let h='<div class="splbl">Search &amp; browse scope</div>';
+  h+=scopeSection('Regions','region',regionItems(),selRegions);
+  h+=scopeSection('Works','work',workScopeItems(),selWorks);
+  h+='<div class="splbl">Metadata filters</div>';
+  h+='<div class="frange"><label>Year</label>'
+    +'<input type="number" id="yrFrom" value="'+(yrFrom??'')+'" placeholder="'+(CORPUS_YMIN??'')+'">–'
+    +'<input type="number" id="yrTo" value="'+(yrTo??'')+'" placeholder="'+(CORPUS_YMAX??'')+'"></div>';
+  h+=facetSection('Genre','genre',FACETS.genre,selGenre);
+  h+=facetSection('Author','auth',FACETS.auth,selAuth);
+  h+=facetSection('Publisher','pub',FACETS.pub,selPub);
+  h+=facetSection('Translator','trans',FACETS.trans,selTrans);
+  h+=facetSection('Subject','subj',FACETS.subj,selSubj);
+  body.innerHTML=h;
+  const yf=$('yrFrom'), yt=$('yrTo');
+  const onYr=()=>{ yrFrom=yf.value!==''?+yf.value:null; yrTo=yt.value!==''?+yt.value:null; applyFilters(); };
+  yf.addEventListener('change',onYr); yt.addEventListener('change',onYr);
+  body.querySelectorAll('.facList[data-facet]').forEach(list=>{ const setFn=FACET_SETS[list.dataset.facet];
+    list.addEventListener('change',e=>{ const cb=e.target; const sel=setFn();
+      cb.checked?sel.add(cb.value):sel.delete(cb.value); updateFacetCounts(); applyFilters(); }); });
+  wireScopeLists(body);
+  updateFacetCounts(); updateScopeCounts();
+}
+function updateFacetCounts(){
+  const map={genre:selGenre,auth:selAuth,pub:selPub,trans:selTrans,subj:selSubj};
+  document.querySelectorAll('#filterBody .fc[data-key]').forEach(s=>{ const n=map[s.dataset.key].size; s.textContent=n?(' · '+n):''; });
+}
+function updateFilterLabel(){
+  const meta=selGenre.size+selAuth.size+selPub.size+selTrans.size+selSubj.size+(rangeActive()?1:0);
+  const n=meta+selRegions.size+selWorks.size;
+  const scope=(selWorks.size?activeCorpus.filter(id=>selWorks.has(id)):activeCorpus).length;
+  $('filterBtn').classList.toggle('on', n>0);
+  $('filterBtn').textContent = n>0 ? ('⛃ Filters ('+scope+')') : '⛃ Filters';
+}
+function applyFilters(){
+  recomputeCorpus(); populateWorkSelect(); updateFilterLabel();
+  if(!activeCorpus.length){
+    $('empty').style.display='block'; $('empty').textContent='No works match the current filters.';
+    $('stack').style.display='none'; curWork=null; curData=null; hits=[]; $('count').textContent=''; renderList(); return;
+  }
+  if(!activeCorpus.includes(curWork)){ selectWork(activeCorpus[0]); }
+  if(browseMode) runBrowse(); else if($('q').value.trim()) runSearch(); else { hits=[]; renderList(); }
+}
+function clearFilters(){
+  [selGenre,selAuth,selPub,selTrans,selSubj,selRegions,selWorks].forEach(s=>s.clear());
+  yrFrom=CORPUS_YMIN; yrTo=CORPUS_YMAX; renderFilters(); applyFilters();
+}
+$('filterBtn').onclick=()=>{ const p=$('filterPanel'),open=!p.classList.contains('open');
+  $('statsPanel').classList.remove('open'); $('variantPanel').classList.remove('open'); p.classList.toggle('open',open); if(open) renderFilters(); };
+$('filterClose').onclick=()=>$('filterPanel').classList.remove('open');
+$('filterClear').onclick=clearFilters;
+
+// ── About: full works list with source + VIAF links ──
+function authorsHtml(authors){
+  return (authors||[]).map(a=> a.viaf
+    ? '<a href="'+escapeHtml(a.viaf)+'" target="_blank" rel="noopener" title="VIAF authority record">'+escapeHtml(a.name)+'</a>'
+    : escapeHtml(a.name)).join('; ');
+}
+function buildAboutWorks(){
+  const box=$('aboutWorks'); if(!box) return;
+  const rows=MANIFEST.works.map(w=>{ const m=w.meta||{};
+    const name=m.full_title||w.title;
+    const t=m.source?'<a href="'+escapeHtml(m.source)+'" target="_blank" rel="noopener">'+escapeHtml(name)+'</a>':escapeHtml(name);
+    const a=authorsHtml(m.authors)||'<span class="dim">—</span>';
+    const y=escapeHtml(m.year_g_label||'');
+    return '<tr><td>'+t+'</td><td>'+a+'</td><td class="num">'+y+'</td></tr>';
+  }).join('');
+  box.innerHTML='<table class="awt"><thead><tr><th>Work</th><th>Author (→ VIAF)</th><th class="num">Year</th></tr></thead><tbody>'+rows+'</tbody></table>';
+}
+
+// ── virtual keyboard ──
+function buildKeyboard(){
+  const rows=["ا آ أ إ ء ؤ ئ ب پ ت ث ج چ ح خ","د ذ ر ز ژ س ش ص ض ط ظ ع غ","ف ق ك گ ڭ ل م ن و ه ة ی ى","لا ـ ٔ"];
+  const kb=$('kb'); kb.innerHTML='';
+  rows.forEach(r=>r.split(' ').forEach(ch=>{const b=document.createElement('button');b.textContent=ch;b.onclick=()=>insertAtCursor(ch);kb.appendChild(b);}));
+  [['space',()=>insertAtCursor(' ')],['⌫ back',backspace],['clear',()=>{$('q').value='';runSearch();}]].forEach(([t,fn])=>{
+    const b=document.createElement('button');b.className='util';b.textContent=t;b.onclick=fn;kb.appendChild(b);});
+  // tapping a key must NOT blur the search box (otherwise the keyboard hides
+  // before the click lands), so suppress the default focus-stealing on mousedown
+  kb.querySelectorAll('button').forEach(b=>b.addEventListener('mousedown',e=>e.preventDefault()));
+}
+function insertAtCursor(ch){const el=$('q');const s=el.selectionStart??el.value.length,e=el.selectionEnd??el.value.length;
+  el.value=el.value.slice(0,s)+ch+el.value.slice(e);el.focus();const p=s+ch.length;el.setSelectionRange(p,p);runSearch();}
+function backspace(){const el=$('q');const s=el.selectionStart,e=el.selectionEnd;
+  if(s===e&&s>0){el.value=el.value.slice(0,s-1)+el.value.slice(e);el.setSelectionRange(s-1,s-1);}
+  else{el.value=el.value.slice(0,s)+el.value.slice(e);el.setSelectionRange(s,s);}el.focus();runSearch();}
+function setKeyboard(show){ $('kb').style.display=show?'flex':'none'; }
+// the on-screen keyboard opens when the search bar is focused and hides when it
+// loses focus (key taps don't blur it — see buildKeyboard)
+$('q').addEventListener('focus',()=>setKeyboard(true));
+$('q').addEventListener('blur',()=>setKeyboard(false));
+
+// ── region + work scope selectors (rendered inside the Filters panel) ──
+// empty selection means "all". These feed both search and Browse.
+function regionItems(){
+  const cls=new Set(); MANIFEST.works.forEach(w=>(w.classes||[]).forEach(c=>cls.add(c)));
+  const regs=REGION_ORDER.filter(c=>cls.has(c)).concat([...cls].filter(c=>!REGION_ORDER.includes(c)));
+  return regs.map(c=>({value:c,label:REGION_LABELS[c]||c,color:REGION_COLORS[c]||REGION_COLORS._d}));
+}
+function workScopeItems(){ return MANIFEST.works.map(w=>({value:w.id,label:w.title})); }
+// a collapsible checkbox section (matches the metadata facets' look)
+function scopeSection(title,key,items,sel){
+  if(!items.length) return '';
+  const lc=escapeHtml(title.toLowerCase());
+  let h='<details class="facet"'+(sel.size?' open':'')+'><summary>'+escapeHtml(title)
+    +'<span class="fc" data-selkey="'+key+'"></span></summary><div class="facList selList" data-sel="'+key+'">';
+  h+='<label class="frow"><input type="checkbox" data-all="1"'+(sel.size===0?' checked':'')
+    +'><span class="fv"><b>All '+lc+'</b></span></label>';
+  items.forEach(it=>{ const sw=it.color?('<span class="mssw" style="background:'+it.color+'"></span>'):'';
+    h+='<label class="frow"><input type="checkbox" value="'+escapeHtml(it.value)+'"'+(sel.has(it.value)?' checked':'')
+      +'>'+sw+'<span class="fv" title="'+escapeHtml(it.label)+'">'+escapeHtml(it.label)+'</span></label>'; });
+  return h+'</div></details>';
+}
+function updateScopeCounts(){
+  document.querySelectorAll('#filterBody .fc[data-selkey]').forEach(s=>{
+    const sel=(s.dataset.selkey==='region'?selRegions:selWorks); s.textContent=sel.size?(' · '+sel.size):''; });
+}
+function wireScopeLists(body){
+  body.querySelectorAll('.selList').forEach(list=>{
+    const sel=(list.dataset.sel==='region'?selRegions:selWorks);
+    list.addEventListener('change',e=>{ const cb=e.target;
+      if(cb.dataset.all){ sel.clear(); list.querySelectorAll('input:not([data-all])').forEach(i=>i.checked=false); cb.checked=true; }
+      else { cb.checked?sel.add(cb.value):sel.delete(cb.value);
+        const allcb=list.querySelector('input[data-all]'); if(allcb) allcb.checked=(sel.size===0); }
+      updateScopeCounts(); updateFilterLabel();
+      if(browseMode) runBrowse(); else if($('q').value.trim()) runSearch(); else renderList();
+    });
+  });
+}
+
+// ── sidebar: a plain text page list while browsing, a results list (with the
+// transcription snippet) while searching. No thumbnails -> no images load until
+// you actually open a page. ──
+function renderList(){ const box=$('pages'); box.innerHTML='';
+  if(pairsMode) renderPairResults(box);
+  else if(browseMode) renderRegionResults(box);
+  else if(hits.length) renderResults(box); else renderPageList(box);
+  refreshStats(); }
+function renderPageList(box){
+  if(!curData) return; $('listHead').textContent='Pages';
+  curData.pages.forEach((p,i)=>{
+    const d=document.createElement('div'); d.className='pi'+(i===curPage?' active':''); d.dataset.i=i;
+    // thumbnails are loading="lazy": only the ones you scroll to actually load
+    d.innerHTML=`<div class="thumb">${p.im?`<img loading="lazy" src="${IMG_BASE+curWork+'/'+p.im}" alt="">`:`<div class="ph">no image</div>`}</div><span class="pnum">${p.n}</span>`;
+    d.onclick=()=>goToPage(i);
+    box.appendChild(d);
+  });
+}
+function renderResults(box){
+  $('listHead').textContent='Results';
+  const cap=Math.min(hits.length,800);
+  for(let k=0;k<cap;k++){ const h=hits[k], wd=cache[h.w]; if(!wd) continue;
+    const p=wd.pages[h.p]; const cls=h.reg?p.R[h.ri][0]:p.L[h.l][0];
+    let txt=hitText(h); if(txt.length>240) txt=txt.slice(0,240)+'…';
+    const el=document.createElement('div'); el.className='res'+(k===hitIdx?' active':''); el.dataset.k=k;
+    const wl=(scopeIds.length>1)?((META[h.w]?META[h.w].title:h.w)+' · '):'';
+    const chip='<span class="rchip" style="background:'+(REGION_COLORS[cls]||REGION_COLORS._d)+'">'+escapeHtml(REGION_LABELS[cls]||cls)+'</span> ';
+    el.innerHTML=`<div class="rmeta">${chip}${escapeHtml(wl)}${escapeHtml(p.n)}</div><div class="rsnip">${highlight(txt)}</div>`;
+    el.onclick=()=>jumpTo(k);
+    box.appendChild(el);
+  }
+  if(hits.length>cap){ const m=document.createElement('div'); m.className='reshead2';
+    m.textContent='… +'+(hits.length-cap)+' more — use ↑ ↓'; box.appendChild(m); }
+}
+function highlightResult(){
+  const box=$('pages'); [...box.children].forEach(el=>{ if(el.dataset.k!==undefined) el.classList.toggle('active',+el.dataset.k===hitIdx); });
+  const el=box.querySelector(`.res[data-k="${hitIdx}"]`); if(el) el.scrollIntoView({block:'nearest'});
+}
+
+// ── browse all instances of a region type (e.g. all footnotes / all images) ──
+function browseScopeLabel(){
+  const v=[...selRegions];
+  if(v.length===1) return (REGION_LABELS[v[0]]||v[0]).toLowerCase();
+  if(v.length===0) return 'region';
+  return 'region';
+}
+function toggleBrowse(){
+  if(browseMode){ exitBrowse(); $('count').textContent=''; renderList(); return; }
+  browseMode=true; $('browseBtn').classList.add('on');
+  $('q').value=''; hits=[]; hitIdx=-1;
+  if(!$('showR').checked){ $('showR').checked=true; redrawDrawn(); }
+  runBrowse();
+}
+function exitBrowse(){
+  if(!browseMode) return;
+  browseMode=false; $('browseBtn').classList.remove('on'); regHits=[]; regIdx=-1;
+  document.querySelectorAll('.region.rsel').forEach(x=>x.classList.remove('rsel'));
+}
+async function runBrowse(){
+  regHits=[]; regIdx=-1;
+  const corpus = activeCorpus.length ? activeCorpus : MANIFEST.works.map(w=>w.id);
+  const ids = (selWorks.size ? [...selWorks] : corpus).filter(id=>corpus.includes(id));
+  scopeIds = ids;
+  const useReg = selRegions.size>0;
+  $('count').textContent='collecting…';
+  const datas = await Promise.all(ids.map(loadWork));
+  datas.forEach((d,wi)=>{ const id=ids[wi]; d.pages.forEach((p,pi)=>p.R.forEach((r,ri)=>{
+    if(useReg && !selRegions.has(r[0])) return; regHits.push({w:id,p:pi,ri});
+  }));});
+  const label=browseScopeLabel();
+  if(!regHits.length){ $('count').textContent='no '+label+'s'; renderList(); return; }
+  const nW=new Set(regHits.map(h=>h.w)).size;
+  $('count').textContent=regHits.length+' '+label+(regHits.length!==1?'s':'')+(ids.length>1?' · '+nW+' works':'');
+  regIdx=0; renderList(); jumpToRegion(0);
+}
+// combined OCR text inside a region bbox (lines whose centre falls inside it)
+function regionText(p, r){
+  // handwritten OCR stores the transcription on the region itself (r[5]),
+  // as a single string with '\n' between lines
+  if(r.length>5 && r[5]) return r[5];
+  // fallback: stitch together any per-line text whose center is inside the region
+  const x1=r[1],y1=r[2],x2=r[3],y2=r[4], parts=[];
+  for(const l of (p.L||[])){ if(!l[2]) continue;
+    const xs=l[1].map(q=>q[0]), ys=l[1].map(q=>q[1]);
+    const cx=(Math.min(...xs)+Math.max(...xs))/2, cy=(Math.min(...ys)+Math.max(...ys))/2;
+    if(cx>=x1&&cx<=x2&&cy>=y1&&cy<=y2) parts.push([cy,l[2]]);
+  }
+  parts.sort((a,b)=>a[0]-b[0]);
+  return parts.map(q=>q[1]).join('\n');
+}
+function regionSummaryHtml(){
+  const per={}; regHits.forEach(h=>{ per[h.w]=(per[h.w]||0)+1; });
+  const rows=Object.keys(per).map(id=>({id,title:(META[id]?META[id].title:id),n:per[id]}))
+    .sort((a,b)=>b.n-a.n||a.title.localeCompare(b.title));
+  const label=browseScopeLabel(), tot=regHits.length;
+  let h='<div id="rsum"><div class="rsum-h">'+tot+' '+escapeHtml(label)+(tot!==1?'s':'')
+    +' across '+rows.length+' work'+(rows.length!==1?'s':'')+'</div><table>';
+  rows.forEach(r=>{ h+='<tr><td class="wn" title="'+escapeHtml(r.title)+'">'+escapeHtml(r.title)
+    +'</td><td class="num">'+r.n+'</td></tr>'; });
+  if(rows.length>1) h+='<tr class="tot"><td>Total</td><td class="num">'+tot+'</td></tr>';
+  return h+'</table></div>';
+}
+function renderRegionResults(box){
+  $('listHead').textContent='Regions';
+  if(!regHits.length){ const m=document.createElement('div'); m.className='reshead2';
+    m.textContent='No regions of this type in scope. Pick a type from "all regions ▾".'; box.appendChild(m); return; }
+  box.insertAdjacentHTML('beforeend', regionSummaryHtml());
+  const cap=Math.min(regHits.length,400);
+  for(let k=0;k<cap;k++){ const h=regHits[k], wd=cache[h.w]; if(!wd) continue;
+    const p=wd.pages[h.p], r=p.R[h.ri]; if(!r) continue;
+    const cls=r[0], col=REGION_COLORS[cls]||REGION_COLORS._d;
+    const el=document.createElement('div'); el.className='res'+(k===regIdx?' active':''); el.dataset.rk=k;
+    const wl=(scopeIds.length>1)?((META[h.w]?META[h.w].title:h.w)+' · '):'';
+    let thumb='';
+    if(p.im && p.w && p.h){
+      const TW=150, x1=r[1],y1=r[2],x2=r[3],y2=r[4];
+      const rw=Math.max(1,x2-x1), rh=Math.max(1,y2-y1), sc=TW/rw, dh=Math.min(Math.round(rh*sc),220);
+      const url=IMG_BASE+h.w+'/'+p.im;
+      thumb='<div class="rthumb" style="height:'+dh+'px"><div class="crop" data-bg="'+escapeHtml(url)
+        +'" style="width:'+TW+'px;height:'+Math.round(rh*sc)+'px;background-size:'+Math.round(p.w*sc)+'px '
+        +Math.round(p.h*sc)+'px;background-position:-'+Math.round(x1*sc)+'px -'+Math.round(y1*sc)+'px"></div></div>';
+    }
+    const snip=regionText(p,r);
+    const snipHtml=snip
+      ? '<div class="rsnip">'+escapeHtml(snip.length>300?snip.slice(0,300)+'…':snip)+'</div>'
+      : '<div class="rmeta" style="font-style:italic">no transcribed text</div>';
+    el.innerHTML='<div class="rmeta"><span class="rchip" style="background:'+col+'">'
+      +escapeHtml(REGION_LABELS[cls]||cls)+'</span> '+escapeHtml(wl)+escapeHtml(p.n)+'</div>'+thumb+snipHtml;
+    el.onclick=()=>jumpToRegion(k);
+    box.appendChild(el);
+  }
+  if(regHits.length>cap){ const m=document.createElement('div'); m.className='reshead2';
+    m.textContent='… +'+(regHits.length-cap)+' more — use ↑ ↓'; box.appendChild(m); }
+  lazyBg(box);
+}
+function lazyBg(box){
+  const obs=new IntersectionObserver(es=>es.forEach(e=>{ if(e.isIntersecting){
+    const d=e.target; d.style.backgroundImage='url("'+d.dataset.bg+'")'; obs.unobserve(d); } }),
+    {root:$('pages'),rootMargin:'400px 0px'});
+  box.querySelectorAll('.crop[data-bg]').forEach(d=>obs.observe(d));
+}
+// hl=true marks the current search term(s) inside the region's transcription
+function showRegionText(p,r,hl){
+  const k=$('info').querySelector('.k'), t=$('info').querySelector('.t');
+  k.textContent=p.n+' · '+(REGION_LABELS[r[0]]||r[0]);
+  const txt=regionText(p,r);
+  if(txt){ t.className='t'; t.innerHTML=(hl?highlight(txt):escapeHtml(txt)).replace(/\n/g,'<br>'); }
+  else { t.className='t empty'; t.textContent='No transcription in this region (e.g. an image).'; }
+  if(curData){ const pi=curData.pages.indexOf(p), ri=p.R.indexOf(r);
+    if(pi>=0&&ri>=0) attachVariantButton(pi,ri); }
+}
+async function jumpToRegion(i){
+  if(!regHits.length) return;
+  regIdx=((i%regHits.length)+regHits.length)%regHits.length; const h=regHits[regIdx];
+  const label=browseScopeLabel();
+  $('count').textContent=(regIdx+1)+' / '+regHits.length+' '+label+(regHits.length!==1?'s':'')
+    +((scopeIds.length>1)?' · '+new Set(regHits.map(x=>x.w)).size+' works':'');
+  if(h.w!==curWork) await selectWork(h.w);
+  if(!$('showR').checked){ $('showR').checked=true; }
+  await new Promise(res=>goToPage(h.p, res));
+  const pg=$('stack').querySelector(`.pg[data-i="${h.p}"]`); if(!pg) return;
+  drawPage(pg);
+  const rc=pg.querySelector(`.region[data-ri="${h.ri}"]`);
+  if(rc){ document.querySelectorAll('.region.rsel').forEach(x=>x.classList.remove('rsel'));
+    rc.classList.add('rsel'); rc.scrollIntoView({block:'center',inline:'center',behavior:'smooth'});
+    showRegionText(curData.pages[h.p], curData.pages[h.p].R[h.ri]);
+    clearLineLabels(); clearRegionLabels();
+    showRegionLabel(pg.querySelector('svg'), curData.pages[h.p].R[h.ri], curData.pages[h.p]); }
+  markActive(h.p); highlightRegionResult();
+}
+function highlightRegionResult(){
+  const box=$('pages');
+  [...box.querySelectorAll('.res[data-rk]')].forEach(e=>e.classList.toggle('active',+e.dataset.rk===regIdx));
+  const el=box.querySelector(`.res[data-rk="${regIdx}"]`); if(el) el.scrollIntoView({block:'nearest'});
+}
+// show a page's full OCR text in the info panel when you open it
+function showPageText(i){
+  clearVariantSlot();
+  const lines=curData.pages[i].L.map(l=>l[2]).filter(Boolean);
+  const k=$('info').querySelector('.k'), t=$('info').querySelector('.t');
+  k.textContent=curData.pages[i].n+' · OCR';
+  if(lines.length){ t.className='t'; t.innerHTML=lines.map(l=>escapeHtml(l).replace(/\n/g,'<br>')).join('<br>'); }
+  else { t.className='t empty'; t.textContent='No transcription on this page'; }
+}
+function markActive(i){ curPage=i;
+  [...$('pages').children].forEach(el=>{ if(el.dataset.i!==undefined) el.classList.toggle('active',+el.dataset.i===i); });
+  [...$('stack').children].forEach(pg=>pg.classList.toggle('cur',+pg.dataset.i===i));
+  const el=$('pages').querySelector(`[data-i="${i}"]`); if(el) el.scrollIntoView({block:'nearest'});
+}
+
+// ── select work + build stack ──
+function renderWorkInfo(m){
+  const box=$('workInfo'), meta=(m&&m.meta)||{}; const bits=[];
+  if(meta.full_title) bits.push('<div class="wt">'+escapeHtml(meta.full_title)+'</div>');
+  const ah=authorsHtml(meta.authors); if(ah) bits.push('<div>'+ah+'</div>');
+  if(meta.translators&&meta.translators.length) bits.push('<div>tr. '+escapeHtml(meta.translators.join('; '))+'</div>');
+  const line=[];
+  if(meta.year_g_label) line.push(escapeHtml(meta.year_g_label)+(meta.year_h_label?' / '+escapeHtml(meta.year_h_label)+' AH':''));
+  if(meta.publisher) line.push(escapeHtml(meta.publisher));
+  if(line.length) bits.push('<div>'+line.join(' · ')+'</div>');
+  if(meta.genre) bits.push('<div class="wmeta">'+escapeHtml(meta.genre)+'</div>');
+  if(meta.subjects&&meta.subjects.length) bits.push('<div class="wsub">'+meta.subjects.map(escapeHtml).join(', ')+'</div>');
+  if(meta.source) bits.push('<div><a href="'+escapeHtml(meta.source)+'" target="_blank" rel="noopener">Source ↗</a></div>');
+  if(meta.notes) bits.push('<div class="wnote">'+escapeHtml(meta.notes)+'</div>');
+  box.innerHTML=bits.join(''); box.style.display=bits.length?'block':'none';
+}
+async function selectWork(id){
+  curWork=id; $('workSel').value=id; $('empty').style.display='block'; $('empty').textContent='Loading…';
+  renderWorkInfo(META[id]);
+  curData=await loadWork(id); curPage=0; selRect=null; resetInfo();
+  await buildPairMap();                      // cross-witness variants for this work
+  updatePairsButton();
+  if(pairsMode){ buildPairHits(); if(!pairHits.length) exitPairs(); else pairIdx=Math.min(pairIdx,pairHits.length-1); }
+  renderList(); renderStack(); fitWidth(); markActive(0);
+}
+function makePageEl(i){
+  const p=curData.pages[i], W=p.w||800, H=p.h||1000;
+  const pg=document.createElement('div'); pg.className='pg'; pg.dataset.i=i; pg.setAttribute('data-label',p.n);
+  pg.style.width=(W*zoom)+'px'; pg.style.aspectRatio=W+' / '+H;
+  pg.innerHTML=`<img alt="">`+`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"></svg>`;
+  return pg;
+}
+function renderStack(){
+  if(io){io.disconnect();io=null;} if(ao){ao.disconnect();ao=null;}
+  const stack=$('stack'); stack.innerHTML='';
+  if(!curData||!curData.pages.length){ $('empty').style.display='block'; $('empty').textContent='No pages'; stack.style.display='none'; return; }
+  $('empty').style.display='none'; stack.style.display='flex';
+  if(CONTINUOUS){
+    curData.pages.forEach((p,i)=>stack.appendChild(makePageEl(i)));
+    // load/unload pages near the viewport -> bounded memory at any corpus size
+    io=new IntersectionObserver(es=>es.forEach(e=>{ e.isIntersecting?loadPage(e.target):unloadPage(e.target); }),
+      {root:$('view'), rootMargin:'1500px 0px'});
+    ao=new IntersectionObserver(es=>es.forEach(e=>{ if(e.isIntersecting) markActive(+e.target.dataset.i); }),
+      {root:$('view'), threshold:0.55});
+    [...stack.children].forEach(pg=>{ io.observe(pg); ao.observe(pg); });
+  } else {
+    // light mode: only the current page lives in the DOM
+    goToPage(curPage||0);
+  }
+}
+function loadPage(pg){
+  const i=+pg.dataset.i, p=curData.pages[i], img=pg.querySelector('img');
+  if(p.im){ img.style.display=''; if(img.dataset.src!=='1'){ img.dataset.src='1'; img.onerror=()=>{img.style.display='none';}; img.src=IMG_BASE+curWork+'/'+p.im; } }
+  else img.style.display='none';
+  drawPage(pg);
+}
+function unloadPage(pg){
+  const img=pg.querySelector('img'); img.removeAttribute('src'); img.dataset.src='';
+  pg.querySelector('svg').innerHTML=''; pg.dataset.drawn='';
+}
+function drawPage(pg){
+  const i=+pg.dataset.i, p=curData.pages[i], svg=pg.querySelector('svg'); svg.innerHTML='';
+  const pageHits=new Set(hits.filter(h=>h.w===curWork&&h.p===i&&!h.reg).map(h=>h.l));
+  const active=hitIdx>=0&&hits[hitIdx]&&hits[hitIdx].w===curWork&&hits[hitIdx].p===i&&!hits[hitIdx].reg?hits[hitIdx].l:-1;
+  const regHitSet=new Set(hits.filter(h=>h.w===curWork&&h.p===i&&h.reg).map(h=>h.ri));
+  const activeReg=hitIdx>=0&&hits[hitIdx]&&hits[hitIdx].w===curWork&&hits[hitIdx].p===i&&hits[hitIdx].reg?hits[hitIdx].ri:-1;
+  if($('showR').checked) p.R.forEach((r,ri)=>{const[c,x1,y1,x2,y2]=r;
+    // draw the region's own polygon (follows page skew, no false y-overlap on
+    // two-column pages); fall back to the bbox rectangle if no polygon stored
+    const rp=r[6]; const e=(rp&&rp.length>=3)?poly(rp,'region'):rect(x1,y1,x2,y2,'region');
+    const col=REGION_COLORS[c]||REGION_COLORS._d; e.setAttribute('stroke',col); e.setAttribute('fill',col); e.setAttribute('fill-opacity','0.10');
+    e.dataset.ri=ri; e.style.cursor='pointer';
+    if(regHitSet.has(ri)){ e.classList.add('rhit'); if(ri===activeReg) e.classList.add('active'); }
+    if(pairsMode && pairMap[i] && pairMap[i][ri]) e.classList.add('rpair');   // has a variant
+    e.addEventListener('click',ev=>{ev.stopPropagation();
+      document.querySelectorAll('.region.rsel').forEach(x=>x.classList.remove('rsel'));
+      e.classList.add('rsel'); showRegionText(p,r,true); scrollInfoToMark();   // highlight the searched term
+      clearLineLabels(); clearRegionLabels(); showRegionLabel(svg,r,p);});
+    e.appendChild(svgTitle(c));svg.appendChild(e);});
+  if($('showL').checked) p.L.forEach((l,li)=>{
+    const txt=l[2]; const e=poly(l[1],'line'); e.dataset.li=li;
+    if(li===active)e.classList.add('hit','active'); else if(pageHits.has(li))e.classList.add('hit');
+    e.addEventListener('click',ev=>{ev.stopPropagation();selectLine(e,i,li);});
+    e.addEventListener('mouseenter',()=>{if(txt){$('tip').textContent=txt;$('tip').style.display='block';}});
+    e.addEventListener('mousemove',ev=>{$('tip').style.left=(ev.clientX+15)+'px';$('tip').style.top=(ev.clientY-8)+'px';});
+    e.addEventListener('mouseleave',()=>$('tip').style.display='none');
+    svg.appendChild(e);
+  });
+  pg.dataset.drawn='1';
+}
+function poly(points,cls){const e=document.createElementNS('http://www.w3.org/2000/svg','polygon');
+  e.setAttribute('points',points.map(p=>p[0]+','+p[1]).join(' '));
+  e.setAttribute('vector-effect','non-scaling-stroke'); e.setAttribute('class',cls); return e;}
+function redrawDrawn(){ [...$('stack').children].forEach(pg=>{ if(pg.dataset.drawn) drawPage(pg); }); }
+function rect(x1,y1,x2,y2,cls){const r=document.createElementNS('http://www.w3.org/2000/svg','rect');
+  r.setAttribute('x',x1);r.setAttribute('y',y1);r.setAttribute('width',Math.max(1,x2-x1));r.setAttribute('height',Math.max(1,y2-y1));
+  r.setAttribute('vector-effect','non-scaling-stroke');r.setAttribute('class',cls);return r;}
+function svgTitle(t){const e=document.createElementNS('http://www.w3.org/2000/svg','title');e.textContent=t;return e;}
+function goToPage(i,cb){
+  if(!curData||i<0||i>=curData.pages.length) return;
+  if(CONTINUOUS){
+    const pg=$('stack').querySelector(`.pg[data-i="${i}"]`); if(!pg) return;
+    loadPage(pg); pg.scrollIntoView({block:'start',behavior:'smooth'}); markActive(i);
+  } else {
+    const stack=$('stack'); stack.innerHTML=''; const pg=makePageEl(i); stack.appendChild(pg);
+    loadPage(pg); $('view').scrollTop=0; $('view').scrollLeft=0; markActive(i);
+  }
+  showPageText(i);
+  if(cb) setTimeout(cb, CONTINUOUS?90:30);
+}
+function scrollToPage(i,cb){ goToPage(i,cb); }
+
+// ── info ──
+function clearLineLabels(){ document.querySelectorAll('foreignObject.linelabel').forEach(o=>o.remove()); }
+function showLineLabel(svg, pts, text){
+  // a text strip drawn just under the line, spanning the line's x-extent
+  const xs=pts.map(p=>p[0]), ys=pts.map(p=>p[1]);
+  const x1=Math.min(...xs), x2=Math.max(...xs), y1=Math.min(...ys), y2=Math.max(...ys);
+  const w=Math.max(1,x2-x1), lh=Math.max(8,y2-y1), fs=Math.round(lh*0.5);
+  const fo=document.createElementNS('http://www.w3.org/2000/svg','foreignObject');
+  fo.setAttribute('class','linelabel');
+  fo.setAttribute('x',x1); fo.setAttribute('y',Math.round(y2+lh*0.12));
+  fo.setAttribute('width',w); fo.setAttribute('height',Math.round(lh*3));
+  fo.innerHTML='<div xmlns="http://www.w3.org/1999/xhtml" class="ll" style="font-size:'+fs+'px">'+escapeHtml(text)+'</div>';
+  svg.appendChild(fo);
+}
+function clearRegionLabels(){ document.querySelectorAll('foreignObject.regionlabel').forEach(o=>o.remove()); }
+// draw the region's transcription line-by-line in a panel beside the region box
+// (whichever side — left or right — has more room on the page)
+function showRegionLabel(svg, r, p){
+  const txt=regionText(p,r); if(!txt) return;
+  const lines=txt.split('\n'), n=Math.max(1,lines.length);
+  const x1=r[1],y1=r[2],x2=r[3],y2=r[4];
+  const rw=Math.max(1,x2-x1), rh=Math.max(1,y2-y1);
+  const W=p.w||(x2+rw), gap=Math.max(6,Math.round(rw*0.05));
+  const spaceR=W-x2-gap, spaceL=x1-gap, right=spaceR>=spaceL;      // pick roomier side
+  const avail=Math.max(right?spaceR:spaceL,24);
+  const panelW=Math.round(Math.min(Math.max(rw,120),Math.max(avail,24)));
+  const px=right?(x2+gap):Math.max(0,x1-gap-panelW);
+  const rowH=rh/n, fs=Math.max(7,Math.min(Math.round(rowH*0.6),30));
+  const fo=document.createElementNS('http://www.w3.org/2000/svg','foreignObject');
+  fo.setAttribute('class','regionlabel');
+  fo.setAttribute('x',px); fo.setAttribute('y',y1);
+  fo.setAttribute('width',panelW); fo.setAttribute('height',rh);
+  fo.innerHTML='<div xmlns="http://www.w3.org/1999/xhtml" class="rl" style="font-size:'+fs+'px">'
+    +lines.map(l=>'<div>'+escapeHtml(l)+'</div>').join('')+'</div>';
+  svg.appendChild(fo);
+}
+function selectLine(r,pi,li){ if(selRect)selRect.classList.remove('sel'); selRect=r; r.classList.add('sel');
+  const p=curData.pages[pi], l=p.L[li]; const k=$('info').querySelector('.k');
+  const t=$('info').querySelector('.t'); const txt=l[2]||'';
+  if(txt){                                   // per-line transcription available
+    k.textContent=p.n+' · '+l[0];
+    t.className='t';t.innerHTML=highlight(txt).replace(/\n/g,'<br>');
+  } else {                                   // fall back to the parent region's text
+    const reg=p.R[l[3]], rtxt=reg?regionText(p,reg):'';
+    if(rtxt){ k.textContent=p.n+' · '+(REGION_LABELS[l[0]]||l[0]);
+      t.className='t';t.innerHTML=highlight(rtxt).replace(/\n/g,'<br>'); }
+    else { k.textContent=p.n+' · '+l[0];
+      t.className='t empty';t.textContent='No transcription for this line'; }
+  }
+  clearLineLabels(); clearRegionLabels(); if(txt) showLineLabel(r.parentNode, l[1], txt);   // under-line OCR strip
+  attachVariantButton(pi, l[3]);           // variant button if this line's region is aligned
+}
+function _ymin(pts){ let m=Infinity; for(const p of pts) if(p[1]<m) m=p[1]; return m; }
+// move the selection to the line above/below WITHIN the same region; stop at the
+// region's first/last line (never crosses into another region or page)
+function moveLine(dir){
+  if(!selRect) return;
+  const pg=selRect.closest('.pg'); if(!pg) return;
+  const pi=+pg.dataset.i, li=+selRect.dataset.li, L=curData.pages[pi].L, ri=L[li][3];
+  const sib=[]; for(let j=0;j<L.length;j++) if(L[j][3]===ri) sib.push(j);
+  sib.sort((a,b)=>_ymin(L[a][1])-_ymin(L[b][1]));
+  const tgt=sib[sib.indexOf(li)+dir];
+  if(tgt===undefined) return;                       // top/bottom of region -> stop
+  const el=pg.querySelector(`polygon.line[data-li="${tgt}"]`);
+  if(el){ selectLine(el,pi,tgt); el.scrollIntoView({block:'center',behavior:'smooth'}); }
+}
+function resetInfo(){clearVariantSlot();const k=$('info').querySelector('.k');if(k)k.textContent='';const t=$('info').querySelector('.t');if(t){t.className='t empty';t.textContent='Click a line to see its transcription';}}
+$('view').addEventListener('click',e=>{const tag=e.target.tagName.toLowerCase();
+  if(tag==='img'||tag==='svg'||e.target.id==='stack'||e.target.id==='view'){if(selRect){selRect.classList.remove('sel');selRect=null;}
+    document.querySelectorAll('.region.rsel').forEach(x=>x.classList.remove('rsel'));
+    clearLineLabels(); clearRegionLabels(); clearVariantSlot();}});
+// ── drag handle: resize the transcription (#info) panel vs the page list ──
+(function(){
+  const rez=$('infoResizer'), info=$('info'), side=$('side');
+  if(!rez) return;
+  let dragging=false;
+  const onMove=e=>{ if(!dragging) return;
+    const y=(e.touches?e.touches[0].clientY:e.clientY);
+    const rect=side.getBoundingClientRect();
+    let h=rect.bottom-y;                       // panel height = distance to sidebar bottom
+    const maxH=side.clientHeight-150;          // always leave room for the page list + heads
+    h=Math.max(70,Math.min(h, Math.max(70,maxH)));
+    info.style.height=h+'px';
+  };
+  const stop=()=>{ if(!dragging)return; dragging=false; document.body.classList.remove('resizing'); };
+  const start=e=>{ dragging=true; document.body.classList.add('resizing'); e.preventDefault(); };
+  rez.addEventListener('mousedown',start);
+  rez.addEventListener('touchstart',start,{passive:false});
+  window.addEventListener('mousemove',onMove);
+  window.addEventListener('touchmove',onMove,{passive:false});
+  window.addEventListener('mouseup',stop);
+  window.addEventListener('touchend',stop);
+})();
+// combined highlighter for every "/"-separated term
+function buildHighlightRe(){
+  const terms=splitTerms($('q').value); if(!terms.length) return null;
+  const rx=$('rx').checked, nm=$('norm').checked;
+  const pats=terms.map(t=>{ const tt=nm?norm(t):t; return rx?tt:tt.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }).filter(Boolean);
+  if(!pats.length) return null;
+  try{ return new RegExp(pats.join('|'),'g'); }catch(e){ return null; }
+}
+function highlight(txt){ const re=buildHighlightRe(); if(!re) return escapeHtml(txt);
+  const src=$('norm').checked?norm(txt):txt;
+  try{ return escapeHtml(src).replace(re,m=>'<mark>'+escapeHtml(m)+'</mark>')||escapeHtml(txt); }
+  catch(e){ return escapeHtml(txt); } }
+
+// ── work selector / zoom / toggles ──
+$('workSel').onchange=()=>{ clearBack(); selectWork($('workSel').value); };
+function applyZoom(){ if(!curData)return; [...$('stack').children].forEach(pg=>{const i=+pg.dataset.i;pg.style.width=((curData.pages[i].w||800)*zoom)+'px';});
+  $('zoomlbl').textContent=Math.round(zoom*100)+'%'; }
+function fitWidth(){ if(!curData)return; const maxW=Math.max(...curData.pages.map(p=>p.w||800),1);
+  const vw=$('view').clientWidth-40; zoom=Math.max(.1,Math.min(2,vw/maxW)); applyZoom(); }
+$('zin').onclick=()=>{zoom=Math.min(zoom+.2,6);applyZoom();};
+$('zout').onclick=()=>{zoom=Math.max(zoom-.2,.1);applyZoom();};
+$('zfit').onclick=fitWidth;
+$('showR').onchange=redrawDrawn; $('showL').onchange=redrawDrawn;
+$('aboutBtn').onclick=()=>$('about').style.display='flex';
+$('about').addEventListener('click',e=>{if(e.target===$('about'))$('about').style.display='none';});
+
+// ── search ──
+// split the query into terms on unescaped "/"; "\/" is a literal slash. Each term
+// is matched independently — a line is a hit if ANY term matches — and, in the
+// Stats panel, plotted as its own series so variants can be compared over time.
+function splitTerms(q){ const parts=[]; let cur='';
+  for(let i=0;i<q.length;i++){ const ch=q[i];
+    if(ch==='\\'&&q[i+1]==='/'){ cur+='/'; i++; continue; }   // \/ -> literal slash
+    if(ch==='/'){ parts.push(cur); cur=''; continue; }
+    cur+=ch; }
+  parts.push(cur); return parts.map(s=>s.trim()).filter(Boolean); }
+function makeMatcher(q){ if(!q)return null; const rx=$('rx').checked,nm=$('norm').checked;
+  if(rx){try{const re=new RegExp(q);return t=>re.test(nm?norm(t):t);}catch(e){return 'ERR';}}
+  const needle=nm?norm(q):q; return t=>(nm?norm(t):t).includes(needle);}
+function computeHitCountsForWork(id){ if(!hits.length)return null; const hc={};
+  hits.forEach(h=>{if(h.w===id)hc[h.p]=(hc[h.p]||0)+1;}); return Object.keys(hc).length?hc:null;}
+async function runSearch(){
+  clearBack();
+  const terms=splitTerms($('q').value); hits=[]; hitIdx=-1;
+  if(!terms.length){ $('count').textContent=''; renderList(); redrawDrawn(); return; }
+  const matchers=terms.map(makeMatcher);
+  if(matchers.some(m=>m==='ERR')){ $('count').textContent='bad regex'; return; }
+  const preds=matchers.filter(m=>typeof m==='function');
+  if(!preds.length){ $('count').textContent=''; renderList(); redrawDrawn(); return; }
+  const corpus = activeCorpus.length ? activeCorpus : MANIFEST.works.map(w=>w.id);
+  const ids = (selWorks.size ? [...selWorks] : corpus).filter(id=>corpus.includes(id));
+  scopeIds = ids;
+  const useReg = selRegions.size>0;
+  $('count').textContent='searching…';
+  const datas = await Promise.all(ids.map(loadWork));
+  datas.forEach((d,wi)=>{ const id=ids[wi]; d.pages.forEach((p,pi)=>{
+    const lineRegions=new Set();
+    p.L.forEach((l,li)=>{
+      if(useReg && !selRegions.has(l[0]))return; const txt=l[2]; if(!txt)return;
+      lineRegions.add(l[3]);
+      if(preds.some(m=>m(txt))) hits.push({w:id,p:pi,l:li});
+    });
+    // handwritten OCR often stores the transcription on the REGION (with no
+    // per-line text) — search that too so nothing is missed. Skip regions whose
+    // lines already carry the text, to avoid matching the same text twice.
+    p.R.forEach((r,ri)=>{
+      if(useReg && !selRegions.has(r[0]))return;
+      if(lineRegions.has(ri))return;
+      const rt=regionText(p,r); if(!rt)return;
+      if(preds.some(m=>m(rt))) hits.push({w:id,p:pi,ri,reg:1});
+    });
+  });});
+  if(!hits.length){ $('count').textContent='no results'; renderList(); redrawDrawn(); return; }
+  const tlabel=terms.length>1?(' · '+terms.length+' terms'):'';
+  $('count').textContent=hits.length+' match'+(hits.length>1?'es':'')+(ids.length>1?' · '+new Set(hits.map(h=>h.w)).size+' works':'')+tlabel;
+  hitIdx=0; renderList(); redrawDrawn(); jumpTo(0);
+}
+async function jumpTo(i){
+  if(!hits.length)return; hitIdx=((i%hits.length)+hits.length)%hits.length; const h=hits[hitIdx];
+  $('count').textContent=(hitIdx+1)+' / '+hits.length+((scopeIds.length>1)?' · '+new Set(hits.map(x=>x.w)).size+' works':'');
+  if(h.w!==curWork) await selectWork(h.w);
+  await new Promise(res=>goToPage(h.p, res));     // show/scroll to the page (both modes)
+  const pg=$('stack').querySelector(`.pg[data-i="${h.p}"]`); if(!pg)return;
+  if(h.reg && !$('showR').checked){ $('showR').checked=true; }   // region hit needs regions visible
+  drawPage(pg);
+  const p=curData.pages[h.p];
+  if(h.reg){
+    // region-level match (text stored on the region, no per-line text): select
+    // the region, show its transcription with the query highlighted.
+    document.querySelectorAll('.region.rsel').forEach(x=>x.classList.remove('rsel'));
+    if(selRect){selRect.classList.remove('sel');selRect=null;}
+    const reg=p.R[h.ri], rc=pg.querySelector(`.region[data-ri="${h.ri}"]`);
+    if(rc){ rc.classList.add('rsel'); rc.scrollIntoView({block:'center',inline:'center',behavior:'smooth'}); }
+    clearLineLabels(); clearRegionLabels();
+    showRegionText(p,reg,true); if(rc) showRegionLabel(pg.querySelector('svg'),reg,p); scrollInfoToMark();
+  } else {
+    // lines are drawn as <polygon> — select the matched line and show its PARENT
+    // REGION's OCR text in the panel with every match highlighted.
+    const r=pg.querySelector(`.line[data-li="${h.l}"]`);
+    if(r){ r.scrollIntoView({block:'center',inline:'center',behavior:'smooth'}); selectLine(r,h.p,h.l);
+      const reg=(p.L[h.l][3]!=null)?p.R[p.L[h.l][3]]:null;
+      if(reg && regionText(p,reg)) showRegionText(p,reg,true);
+      scrollInfoToMark();
+    }
+  }
+  markActive(h.p); highlightResult();
+}
+// centre the panel on its first highlighted match (only scrolls #info itself)
+function scrollInfoToMark(){
+  const info=$('info'), mk=info.querySelector('mark'); if(!mk) return;
+  const ir=info.getBoundingClientRect(), mr=mk.getBoundingClientRect();
+  info.scrollTop  += (mr.top -ir.top ) - info.clientHeight/2 + mr.height/2;
+  info.scrollLeft += (mr.left-ir.left) - info.clientWidth/2  + mr.width/2;
+}
+
+// ══ cross-witness alignment (variants) ══════════════════════════════════════
+// alignment files (align/manifest.js, align/<A>__<B>.js) are produced by
+// src/align_lines.py; they load like the data files (a global assignment).
+function loadScript(src){ return new Promise(res=>{ const s=document.createElement('script');
+  s.src=src; s.onload=()=>res(true); s.onerror=()=>res(false); document.head.appendChild(s); }); }
+async function loadAlignManifest(){
+  await loadScript('align/manifest.js');
+  ALIGN_MANIFEST=window.__ALIGNMANIFEST||[]; PAIR_INDEX={};
+  ALIGN_MANIFEST.forEach(m=>{ (PAIR_INDEX[m.a]=PAIR_INDEX[m.a]||[]).push(m.key);
+    (PAIR_INDEX[m.b]=PAIR_INDEX[m.b]||[]).push(m.key); });
+}
+function loadAlign(key){ if(window.__ALIGN&&window.__ALIGN[key]) return Promise.resolve(true);
+  return loadScript('align/'+key+'.js'); }
+// index the CURRENT work's pairs: pairMap[pageIdx][regionIdx] = [ {selfK,selfT,s,mt,
+// other:{work,p,r,k,t,pn,cls}} , ... ]
+async function buildPairMap(){
+  pairMap={}; const keys=PAIR_INDEX[curWork]||[]; if(!keys.length) return;
+  await Promise.all(keys.map(loadAlign));
+  keys.forEach(key=>{ const al=window.__ALIGN&&window.__ALIGN[key]; if(!al) return;
+    const selfIsA=al.a===curWork, otherWork=selfIsA?al.b:al.a;
+    al.rows.forEach(row=>{ if(row.t!=='m') return;
+      const self=selfIsA?row.a:row.b, other=selfIsA?row.b:row.a;
+      (pairMap[self.p]=pairMap[self.p]||{});
+      (pairMap[self.p][self.r]=pairMap[self.p][self.r]||[]).push(
+        {selfK:self.k, selfT:self.t, s:row.s, mt:row.mt,
+         other:{work:otherWork,p:other.p,r:other.r,k:other.k,t:other.t,pn:other.pn,cls:other.cls}});
+    });
+  });
+}
+function currentPairsFor(pi,ri){ return (pairMap[pi]&&pairMap[pi][ri])?pairMap[pi][ri]:null; }
+function updatePairsButton(){
+  const b=$('pairsBtn'); const on=ALIGN_MANIFEST&&ALIGN_MANIFEST.length;
+  b.style.display=on?'':'none'; if(!on) return;
+  const has=Object.keys(pairMap).length>0; b.disabled=!has; b.style.opacity=has?'':'0.45';
+  b.title=has?'Step through only the lines/regions that have an aligned variant in another witness'
+             :'This work has no aligned variants';
+}
+// image crop of a region (background-position trick, like the browse thumbs)
+function cropHtml(workId, pageObj, r, TW){
+  if(!(pageObj.im && pageObj.w && pageObj.h)) return '<div class="vnoimg">no page image</div>';
+  const x1=r[1],y1=r[2],x2=r[3],y2=r[4], rw=Math.max(1,x2-x1), rh=Math.max(1,y2-y1), sc=TW/rw;
+  const url=(IMG_BASE+workId+'/'+pageObj.im).replace(/'/g,'%27');
+  return '<div class="vcrop" style="width:'+TW+'px;height:'+Math.round(rh*sc)+'px;'
+    +'background-image:url(\''+url+'\');background-size:'+Math.round(pageObj.w*sc)+'px '+Math.round(pageObj.h*sc)+'px;'
+    +'background-position:-'+Math.round(x1*sc)+'px -'+Math.round(y1*sc)+'px"></div>';
+}
+function clearVariantSlot(){ const s=$('variantSlot'); if(s) s.innerHTML=''; }
+// show a "View variant" button in the transcription panel when the selected
+// region is aligned to a region in another witness
+function attachVariantButton(pi,ri){
+  const slot=$('variantSlot'); if(!slot) return; slot.innerHTML='';
+  const pairs=currentPairsFor(pi,ri); if(!pairs||!pairs.length) return;
+  const b=document.createElement('button'); b.className='variantbtn';
+  b.textContent='⇄ View variant'+(pairs.length>1?(' ('+pairs.length+' lines)'):'');
+  b.onclick=e=>{ e.stopPropagation(); openVariant(pi,ri); };
+  slot.appendChild(b);
+}
+// reconstruct a page's reading order (mirrors src/align_lines.py): two-column
+// text_columns merged right→left, headings kept in the flow, marginalia last.
+// Returns blocks, each = {top, regions:Set, lines:[{ri,k,cls,text}]} in order.
+function _yov(a,b){ const top=Math.max(a.y1,b.y1),bot=Math.min(a.y2,b.y2);
+  const ov=Math.max(0,bot-top), hh=Math.min(a.y2-a.y1,b.y2-b.y1)||1; return ov/hh; }
+function clusterBands(cols){ const n=cols.length, parent=[...Array(n).keys()];
+  const find=a=>{ while(parent[a]!==a){ parent[a]=parent[parent[a]]; a=parent[a]; } return a; };
+  for(let i=0;i<n;i++) for(let j=i+1;j<n;j++) if(_yov(cols[i],cols[j])>=0.35) parent[find(i)]=find(j);
+  const g={}; for(let i=0;i<n;i++){ const r=find(i); (g[r]=g[r]||[]).push(cols[i]); }
+  return Object.values(g).sort((a,b)=>Math.min.apply(null,a.map(c=>c.y1))-Math.min.apply(null,b.map(c=>c.y1))); }
+function bandBlock(band){
+  const top=Math.min.apply(null,band.map(c=>c.y1)), regions=new Set(band.map(c=>c.ri));
+  if(band.length===1) return {top,regions,lines:band[0].lines};
+  const mid=(Math.min.apply(null,band.map(c=>c.x1))+Math.max.apply(null,band.map(c=>c.x2)))/2;
+  const right=band.filter(c=>c.cx>=mid), left=band.filter(c=>c.cx<mid);
+  const cat=g=>{ let o=[]; g.slice().sort((a,b)=>a.y1-b.y1).forEach(c=>o=o.concat(c.lines)); return o; };
+  if(!right.length||!left.length){ let o=[]; band.slice().sort((a,b)=>(b.cx-a.cx)||(a.y1-b.y1)).forEach(c=>o=o.concat(c.lines)); return {top,regions,lines:o}; }
+  const R=cat(right), L=cat(left), merged=[];
+  for(let i=0;i<Math.max(R.length,L.length);i++){ if(i<R.length) merged.push(R[i]); if(i<L.length) merged.push(L[i]); }
+  return {top,regions,lines:merged}; }
+function pageReadingBlocks(p){
+  const INCL={heading:1,text_column:1,marginalia:1}, cols=[],heads=[],margs=[];
+  (p.R||[]).forEach((r,ri)=>{ const cls=r[0]; if(!INCL[cls]) return;
+    const rtext=(r.length>5?r[5]:'')||''; if(!rtext) return; const lines=[];
+    rtext.split('\n').forEach((seg,k)=>{ if(seg.trim()) lines.push({ri,k,cls,text:seg}); });
+    if(!lines.length) return;
+    const it={ri,cls,x1:r[1],y1:r[2],x2:r[3],y2:r[4],cx:(r[1]+r[3])/2,lines};
+    if(cls==='text_column') cols.push(it); else if(cls==='heading') heads.push(it); else margs.push(it); });
+  const blocks=clusterBands(cols).map(bandBlock);
+  heads.forEach(hh=>blocks.push({top:hh.y1,regions:new Set([hh.ri]),lines:hh.lines}));
+  blocks.sort((a,b)=>a.top-b.top);
+  margs.slice().sort((a,b)=>(a.y1-b.y1)||(b.cx-a.cx)).forEach(m=>blocks.push({top:m.y1,regions:new Set([m.ri]),lines:m.lines}));
+  return blocks; }
+const _blockCache={};
+function blocksFor(work,pIdx){ const key=work+'|'+pIdx; if(_blockCache[key]) return _blockCache[key];
+  const p=cache[work].pages[pIdx], blocks=pageReadingBlocks(p), regBlock={};
+  blocks.forEach((b,bi)=>b.regions.forEach(ri=>regBlock[ri]=bi));
+  return _blockCache[key]={blocks,regBlock}; }
+
+// open the panel with the counterpart poem block(s): image crop + OCR shown in
+// TRUE READING ORDER (the two columns interleaved), matched lines highlighted
+async function openVariant(pi,ri){
+  const pairs=currentPairsFor(pi,ri); if(!pairs||!pairs.length) return;
+  // remember where we are, so "Open in this witness" can offer a way back
+  variantOrigin={work:curWork, p:pi, r:ri,
+    li:(selRect&&selRect.classList&&selRect.classList.contains('line'))?+selRect.dataset.li:null};
+  await Promise.all([...new Set(pairs.map(x=>x.other.work))].map(loadWork));
+  // group counterpart lines by the reading-order BLOCK (poem) they fall in, so
+  // both columns of a couplet are shown together in order
+  const groups={};
+  pairs.forEach(x=>{ const o=x.other; const bf=blocksFor(o.work,o.p); const bi=bf.regBlock[o.r];
+    if(bi==null) return; const kk=o.work+'|'+o.p+'|'+bi;
+    (groups[kk]=groups[kk]||{work:o.work,p:o.p,bi:bi,marked:new Set(),primR:o.r,smax:0});
+    groups[kk].marked.add(o.r+':'+o.k); groups[kk].smax=Math.max(groups[kk].smax,x.s); });
+  let h='';
+  Object.values(groups).forEach(g=>{ const op=cache[g.work].pages[g.p];
+    const bf=blocksFor(g.work,g.p), block=bf.blocks[g.bi]; if(!block) return;
+    const regs=[...block.regions].map(r=>op.R[r]).filter(Boolean); if(!regs.length) return;
+    const X1=Math.min.apply(null,regs.map(r=>r[1])), Y1=Math.min.apply(null,regs.map(r=>r[2])),
+          X2=Math.max.apply(null,regs.map(r=>r[3])), Y2=Math.max.apply(null,regs.map(r=>r[4]));
+    const title=(META[g.work]?META[g.work].title:g.work), pcls=(op.R[g.primR]||[])[0]||'text_column';
+    const col=REGION_COLORS[pcls]||REGION_COLORS._d;
+    h+='<div class="vcard"><div class="vhead"><b>'+escapeHtml(title)+'</b> · '+escapeHtml(op.n)
+      +' · <span class="rchip" style="background:'+col+'">'+escapeHtml(REGION_LABELS[pcls]||pcls)+'</span>'
+      +' · <span class="vsim">sim '+g.smax.toFixed(2)+'</span></div>';
+    h+=cropHtml(g.work,op,[null,X1,Y1,X2,Y2],210);
+    h+='<div class="vtext">'+block.lines.map(ln=>'<div class="vln'+(g.marked.has(ln.ri+':'+ln.k)?' hit':'')+'">'+escapeHtml(ln.text)+'</div>').join('')+'</div>';
+    h+='<button class="vopen" data-w="'+escapeHtml(g.work)+'" data-p="'+g.p+'" data-r="'+g.primR+'">Open in this witness ↗</button></div>';
+  });
+  $('variantBody').innerHTML=h||'<div class="empty">Counterpart data not available.</div>';
+  $('variantBody').querySelectorAll('.vopen').forEach(btn=>btn.onclick=()=>openVariantInPlace(btn.dataset.w,+btn.dataset.p,+btn.dataset.r));
+  const selfReg=curData.pages[pi].R[ri];
+  $('variantSub').textContent='Variant · '+escapeHtml(curData.pages[pi].n)+' · '+escapeHtml(REGION_LABELS[selfReg[0]]||selfReg[0]);
+  $('statsPanel').classList.remove('open'); $('filterPanel').classList.remove('open');
+  $('variantPanel').classList.add('open');
+}
+// jump the main viewer to a counterpart region (possibly in the other witness)
+async function openVariantInPlace(work,p,r){
+  $('variantPanel').classList.remove('open');
+  if(variantOrigin){ navBack.push(variantOrigin); variantOrigin=null; }   // enable "← Back"
+  updateBackButton();
+  if(work!==curWork) await selectWork(work);
+  if(!$('showR').checked){ $('showR').checked=true; }
+  await new Promise(res=>goToPage(p,res));
+  const pg=$('stack').querySelector(`.pg[data-i="${p}"]`); if(!pg) return; drawPage(pg);
+  document.querySelectorAll('.region.rsel').forEach(x=>x.classList.remove('rsel'));
+  const rc=pg.querySelector(`.region[data-ri="${r}"]`);
+  if(rc){ rc.classList.add('rsel'); rc.scrollIntoView({block:'center',inline:'center',behavior:'smooth'}); }
+  const reg=curData.pages[p].R[r]; clearLineLabels(); clearRegionLabels();
+  showRegionText(curData.pages[p],reg,false); showRegionLabel(pg.querySelector('svg'),reg,p);
+  markActive(p);
+}
+$('variantClose').onclick=()=>$('variantPanel').classList.remove('open');
+
+// ── "← Back": return to the line/region you were on before opening a witness ──
+function updateBackButton(){ const b=$('backBtn'); if(!b) return;
+  if(navBack.length){ const o=navBack[navBack.length-1];
+    const wt=(META[o.work]?META[o.work].title:o.work);
+    b.style.display=''; b.textContent='← Back to '+wt;
+    b.title='Return to '+wt+', where you were before opening the variant'; }
+  else b.style.display='none';
+}
+function clearBack(){ navBack=[]; variantOrigin=null; updateBackButton(); }
+async function goBackVariant(){
+  if(!navBack.length) return;
+  const o=navBack.pop();
+  $('variantPanel').classList.remove('open');
+  if(o.work!==curWork) await selectWork(o.work);
+  if(!$('showR').checked){ $('showR').checked=true; }
+  await new Promise(res=>goToPage(o.p,res));
+  const pg=$('stack').querySelector(`.pg[data-i="${o.p}"]`); if(!pg){ updateBackButton(); return; }
+  drawPage(pg);
+  if(o.li!=null){
+    const el=pg.querySelector(`.line[data-li="${o.li}"]`);
+    if(el){ selectLine(el,o.p,o.li); el.scrollIntoView({block:'center',inline:'center',behavior:'smooth'}); }
+  } else {
+    document.querySelectorAll('.region.rsel').forEach(x=>x.classList.remove('rsel'));
+    const rc=pg.querySelector(`.region[data-ri="${o.r}"]`);
+    if(rc){ rc.classList.add('rsel'); rc.scrollIntoView({block:'center',inline:'center',behavior:'smooth'}); }
+    const reg=curData.pages[o.p].R[o.r]; clearLineLabels(); clearRegionLabels();
+    showRegionText(curData.pages[o.p],reg,false); showRegionLabel(pg.querySelector('svg'),reg,o.p);
+  }
+  markActive(o.p); updateBackButton();
+}
+$('backBtn').onclick=goBackVariant;
+
+// ── "Variants" mode: step through only the regions that have a variant ──
+// order a page's regions in Ottoman reading order: the RIGHT column
+// (top-to-bottom) before the LEFT column — poems are laid out in two columns,
+// and being right-to-left the right column is read first
+function regionReadOrder(p, ris){
+  const W=p.w||Math.max.apply(null,(p.R||[]).map(r=>r[3]||1).concat(1)), mid=W/2;
+  return ris.map(ri=>{ const r=p.R[ri]; return {ri, right:((r[1]+r[3])/2)>=mid, cy:(r[2]+r[4])/2}; })
+    .sort((a,b)=> a.right!==b.right ? (a.right?-1:1) : a.cy-b.cy )
+    .map(x=>x.ri);
+}
+function buildPairHits(){ pairHits=[];
+  Object.keys(pairMap).map(Number).sort((a,b)=>a-b).forEach(pi=>{
+    const p=curData.pages[pi];
+    regionReadOrder(p, Object.keys(pairMap[pi]).map(Number)).forEach(ri=>{
+      pairHits.push({p:pi,r:ri,pairs:pairMap[pi][ri]}); });
+  }); }
+function togglePairs(){
+  if(pairsMode){ exitPairs(); $('count').textContent=''; renderList(); return; }
+  buildPairHits();
+  if(!pairHits.length){ $('count').textContent='no variants in this work'; return; }
+  if(browseMode) exitBrowse();
+  pairsMode=true; $('pairsBtn').classList.add('on'); $('q').value=''; hits=[]; hitIdx=-1;
+  if(!$('showR').checked){ $('showR').checked=true; }
+  redrawDrawn(); renderList(); pairIdx=0; jumpToPair(0);
+}
+function exitPairs(){ if(!pairsMode) return; pairsMode=false; $('pairsBtn').classList.remove('on');
+  pairHits=[]; pairIdx=-1;
+  document.querySelectorAll('.region.rpair').forEach(x=>x.classList.remove('rpair')); redrawDrawn(); }
+function renderPairResults(box){
+  $('listHead').textContent='Variants';
+  if(!pairHits.length){ const m=document.createElement('div'); m.className='reshead2';
+    m.textContent='No aligned pairs in this work.'; box.appendChild(m); return; }
+  const sum=document.createElement('div'); sum.id='rsum';
+  sum.innerHTML='<div class="rsum-h">'+pairHits.length+' region'+(pairHits.length!==1?'s':'')+' with a variant in another witness</div>';
+  box.appendChild(sum);
+  pairHits.forEach((ph,k)=>{ const p=curData.pages[ph.p], reg=p.R[ph.r]; if(!reg) return;
+    const el=document.createElement('div'); el.className='res'+(k===pairIdx?' active':''); el.dataset.pk=k;
+    const col=REGION_COLORS[reg[0]]||REGION_COLORS._d, sMax=Math.max(...ph.pairs.map(x=>x.s));
+    const otherTitle=(META[ph.pairs[0].other.work]?META[ph.pairs[0].other.work].title:ph.pairs[0].other.work);
+    const self=(regionText(p,reg)||'').slice(0,120);
+    el.innerHTML='<div class="rmeta"><span class="rchip" style="background:'+col+'">'+escapeHtml(REGION_LABELS[reg[0]]||reg[0])+'</span> '
+      +escapeHtml(p.n)+' · '+ph.pairs.length+' line'+(ph.pairs.length!==1?'s':'')+' · sim '+sMax.toFixed(2)+'</div>'
+      +'<div class="rsnip">'+escapeHtml(self)+'</div>'
+      +'<div class="rmeta" style="margin-top:3px">↔ '+escapeHtml(otherTitle)+'</div>';
+    el.onclick=()=>jumpToPair(k);
+    box.appendChild(el);
+  });
+}
+async function jumpToPair(i){
+  if(!pairHits.length) return;
+  pairIdx=((i%pairHits.length)+pairHits.length)%pairHits.length; const ph=pairHits[pairIdx];
+  $('count').textContent=(pairIdx+1)+' / '+pairHits.length+' variants';
+  if(!$('showR').checked){ $('showR').checked=true; }
+  await new Promise(res=>goToPage(ph.p,res));
+  const pg=$('stack').querySelector(`.pg[data-i="${ph.p}"]`); if(!pg) return; drawPage(pg);
+  document.querySelectorAll('.region.rsel').forEach(x=>x.classList.remove('rsel'));
+  const rc=pg.querySelector(`.region[data-ri="${ph.r}"]`);
+  if(rc){ rc.classList.add('rsel'); rc.scrollIntoView({block:'center',inline:'center',behavior:'smooth'}); }
+  const reg=curData.pages[ph.p].R[ph.r]; clearLineLabels(); clearRegionLabels();
+  showRegionText(curData.pages[ph.p],reg,false); showRegionLabel(pg.querySelector('svg'),reg,ph.p);
+  markActive(ph.p); highlightPairResult(); openVariant(ph.p,ph.r);
+}
+function highlightPairResult(){ const box=$('pages');
+  [...box.querySelectorAll('.res[data-pk]')].forEach(e=>e.classList.toggle('active',+e.dataset.pk===pairIdx));
+  const el=box.querySelector(`.res[data-pk="${pairIdx}"]`); if(el) el.scrollIntoView({block:'nearest'}); }
+$('pairsBtn').onclick=togglePairs;
+$('next').onclick=()=>pairsMode?jumpToPair(pairIdx+1):browseMode?jumpToRegion(regIdx+1):jumpTo(hitIdx+1);
+$('prev').onclick=()=>pairsMode?jumpToPair(pairIdx-1):browseMode?jumpToRegion(regIdx-1):jumpTo(hitIdx-1);
+$('clear').onclick=()=>{ if(pairsMode){ togglePairs(); return; } if(browseMode){ toggleBrowse(); return; } $('q').value=''; runSearch(); };
+$('browseBtn').onclick=toggleBrowse;
+
+// ── match statistics (per-work frequency table) ──
+// counts ACTUAL occurrences of the query per line, mirroring the regex/normalize
+// options, so totals reflect true frequency (not just matching lines).
+// build an occurrence-counter for ANY term, honouring the regex/normalize toggles
+function makeCounterFor(q){
+  if(!q) return null;
+  const rx=$('rx').checked, nm=$('norm').checked;
+  if(rx){ try{ const re=new RegExp(q,'g');
+      return t=>{ const m=(nm?norm(t):t).match(re); return m?m.length:0; }; }
+    catch(e){ return null; } }
+  const needle=nm?norm(q):q; if(!needle) return null;
+  return t=>{ const s=nm?norm(t):t; let i=0,c=0;
+    while((i=s.indexOf(needle,i))!==-1){ c++; i+=needle.length; } return c; };
+}
+function buildCounter(){ const terms=splitTerms($('q').value); return makeCounterFor(terms[0]||''); }
+// the transcription behind a hit — a line's text, or a region's text for a
+// region-level hit (handwritten OCR without per-line text)
+function hitText(h){ const wd=cache[h.w]; if(!wd) return ''; const p=wd.pages[h.p];
+  return h.reg ? (regionText(p,p.R[h.ri])||'') : (p.L[h.l][2]||''); }
+function computeStats(){
+  const counter=buildCounter(), per={};        // id -> {occ,lines,pages:Set}
+  hits.forEach(h=>{ const wd=cache[h.w]; if(!wd) return;
+    const txt=hitText(h); const occ=counter?counter(txt):1;
+    const s=per[h.w]||(per[h.w]={occ:0,lines:0,pages:new Set()});
+    s.occ+=occ; s.lines+=1; s.pages.add(h.p); });
+  const rows=Object.keys(per).map(id=>({id,title:(META[id]?META[id].title:id),
+    occ:per[id].occ,lines:per[id].lines,pages:per[id].pages.size}));
+  rows.sort((a,b)=>b.occ-a.occ||b.lines-a.lines||a.title.localeCompare(b.title));
+  const tot={occ:0,lines:0,pages:0};
+  rows.forEach(r=>{ tot.occ+=r.occ; tot.lines+=r.lines; tot.pages+=r.pages; });
+  return {rows,tot};
+}
+// occurrences aggregated by the work's (Gregorian) year -> {byYear, undated}
+function computeTimeSeries(){
+  const counter=buildCounter(), byYear={}; let undated=0;
+  hits.forEach(h=>{ const wd=cache[h.w]; if(!wd) return;
+    const wm=(META[h.w]&&META[h.w].meta)||{}, txt=hitText(h), occ=counter?counter(txt):1;
+    const y=wm.year_g;
+    if(y==null){ undated+=occ; return; }
+    byYear[y]=(byYear[y]||0)+occ; });
+  return {byYear,undated};
+}
+function makeTimePlot(byYear){
+  const years=Object.keys(byYear).map(Number).sort((a,b)=>a-b);
+  if(!years.length) return '<div class="empty">No dated matches to plot.</div>';
+  const xmin=(CORPUS_YMIN!=null?Math.min(CORPUS_YMIN,years[0]):years[0]);
+  const xmax=(CORPUS_YMAX!=null?Math.max(CORPUS_YMAX,years[years.length-1]):years[years.length-1]);
+  const span=Math.max(1,xmax-xmin), ymax=Math.max(...years.map(y=>byYear[y]));
+  const W=318,H=150,m={l:28,r:10,t:10,b:22}, iw=W-m.l-m.r, ih=H-m.t-m.b;
+  const X=y=>m.l+((y-xmin)/span)*iw, Y=v=>m.t+ih-(ymax?v/ymax:0)*ih;
+  const pts=[]; for(let y=xmin;y<=xmax;y++) pts.push([X(y),Y(byYear[y]||0)]);
+  const line=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+  const area=line+' L'+X(xmax).toFixed(1)+' '+(m.t+ih)+' L'+X(xmin).toFixed(1)+' '+(m.t+ih)+' Z';
+  let grid='', yt=Math.min(4,Math.max(1,ymax));
+  for(let i=0;i<=yt;i++){ const v=Math.round(ymax*i/yt), yy=Y(v);
+    grid+='<line class="gl" x1="'+m.l+'" y1="'+yy.toFixed(1)+'" x2="'+(W-m.r)+'" y2="'+yy.toFixed(1)+'"/>'
+      +'<text class="yt" x="'+(m.l-4)+'" y="'+(yy+3).toFixed(1)+'">'+v+'</text>'; }
+  let xt='', n=Math.min(6,span+1);
+  for(let i=0;i<n;i++){ const yv=Math.round(xmin+span*i/(n-1||1));
+    xt+='<text class="xt" x="'+X(yv).toFixed(1)+'" y="'+(H-6)+'">'+yv+'</text>'; }
+  let dots=''; years.forEach(y=>{ dots+='<circle class="dot" cx="'+X(y).toFixed(1)+'" cy="'+Y(byYear[y]).toFixed(1)
+    +'" r="3"><title>'+y+': '+byYear[y]+' occurrence'+(byYear[y]!==1?'s':'')+'</title></circle>'; });
+  return '<svg class="tplot" viewBox="0 0 '+W+' '+H+'" width="100%">'+grid
+    +'<path class="tarea" d="'+area+'"/><path class="tline" d="'+line+'"/>'+dots+xt+'</svg>';
+}
+// ── compare several terms over time (variant competition) ──
+const CMP_COLORS=['#4477AA','#EE6677','#228833','#CCBB44','#AA3377','#66CCEE','#EE8866','#009988','#BBBBBB'];
+// the works currently in scope (active corpus ∩ selected works), loaded on demand
+async function ensureScopeLoaded(){
+  const corpus = activeCorpus.length ? activeCorpus : MANIFEST.works.map(w=>w.id);
+  const ids = (selWorks.size ? [...selWorks] : corpus).filter(id=>corpus.includes(id));
+  await Promise.all(ids.map(loadWork));
+  return ids;
+}
+// for each term: occurrences per Gregorian year across the given works (respects
+// the region scope + regex/normalize toggles). Undated works are tallied apart.
+function computeTermSeriesMulti(terms, ids){
+  const useReg=selRegions.size>0;
+  const series=terms.map(t=>({term:t, counter:makeCounterFor(t), byYear:{}, total:0, undated:0}));
+  ids.forEach(id=>{ const d=cache[id]; if(!d) return;
+    const wm=(META[id]&&META[id].meta)||{}, y=wm.year_g;
+    const add=txt=>series.forEach(s=>{ const c=s.counter?s.counter(txt):0; if(!c) return;
+      s.total+=c; if(y==null) s.undated+=c; else s.byYear[y]=(s.byYear[y]||0)+c; });
+    d.pages.forEach(p=>{
+      const lineRegions=new Set();
+      p.L.forEach(l=>{ if(!l[2]) return; if(useReg && !selRegions.has(l[0])) return; lineRegions.add(l[3]); add(l[2]); });
+      p.R.forEach((r,ri)=>{ if(lineRegions.has(ri)) return; if(useReg && !selRegions.has(r[0])) return;
+        const rt=regionText(p,r); if(rt) add(rt); });
+    });
+  });
+  return series;
+}
+// one line per series (shared y-axis) so variants can be compared directly
+function makeTimePlotMulti(series){
+  const yset=new Set(); series.forEach(s=>Object.keys(s.byYear).forEach(y=>yset.add(+y)));
+  const ys=[...yset].sort((a,b)=>a-b);
+  if(!ys.length) return '<div class="empty">No dated occurrences to plot.</div>';
+  const xmin=(CORPUS_YMIN!=null?Math.min(CORPUS_YMIN,ys[0]):ys[0]);
+  const xmax=(CORPUS_YMAX!=null?Math.max(CORPUS_YMAX,ys[ys.length-1]):ys[ys.length-1]);
+  const span=Math.max(1,xmax-xmin);
+  let ymax=1; series.forEach(s=>Object.values(s.byYear).forEach(v=>{ if(v>ymax) ymax=v; }));
+  const W=318,H=160,m={l:28,r:10,t:10,b:22}, iw=W-m.l-m.r, ih=H-m.t-m.b;
+  const X=y=>m.l+((y-xmin)/span)*iw, Y=v=>m.t+ih-(v/ymax)*ih;
+  let grid='', yt=Math.min(4,ymax);
+  for(let i=0;i<=yt;i++){ const v=Math.round(ymax*i/yt), yy=Y(v);
+    grid+='<line class="gl" x1="'+m.l+'" y1="'+yy.toFixed(1)+'" x2="'+(W-m.r)+'" y2="'+yy.toFixed(1)+'"/>'
+      +'<text class="yt" x="'+(m.l-4)+'" y="'+(yy+3).toFixed(1)+'">'+v+'</text>'; }
+  let xt='', n=Math.min(6,span+1);
+  for(let i=0;i<n;i++){ const yv=Math.round(xmin+span*i/(n-1||1));
+    xt+='<text class="xt" x="'+X(yv).toFixed(1)+'" y="'+(H-6)+'">'+yv+'</text>'; }
+  let paths='';
+  series.forEach((s,si)=>{ const col=CMP_COLORS[si%CMP_COLORS.length];
+    const pts=[]; for(let y=xmin;y<=xmax;y++) pts.push([X(y),Y(s.byYear[y]||0)]);
+    const line=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+    paths+='<path fill="none" stroke="'+col+'" stroke-width="1.8" d="'+line+'"/>';
+    Object.keys(s.byYear).map(Number).forEach(y=>{ paths+='<circle class="tdot" fill="'+col
+      +'" cx="'+X(y).toFixed(1)+'" cy="'+Y(s.byYear[y]).toFixed(1)+'" r="2.6"><title>'
+      +escapeHtml(s.term)+' — '+y+': '+s.byYear[y]+' occurrence'+(s.byYear[y]!==1?'s':'')+'</title></circle>'; });
+  });
+  return '<svg class="tplot" viewBox="0 0 '+W+' '+H+'" width="100%">'+grid+paths+xt+'</svg>';
+}
+function cmpLegendHtml(series){
+  let h='<div class="cmpleg">';
+  series.forEach((s,si)=>{ const col=CMP_COLORS[si%CMP_COLORS.length];
+    h+='<span class="lgi"><span class="sw" style="background:'+col+'"></span>'
+      +'<span class="lgt">'+escapeHtml(s.term)+'</span> <span class="lgn">'+s.total+'</span></span>'; });
+  return h+'</div>';
+}
+
+// ── corpus overview (Stats panel default, before any search) ──
+function fmt(n){ return (n||0).toLocaleString(); }
+function renderOverview(body){
+  const ws=MANIFEST.works||[];
+  const tot={works:ws.length,pages:0,regions:0,lines:0,words:0};
+  ws.forEach(m=>{ tot.pages+=m.pages||0; tot.regions+=m.regions||0; tot.lines+=m.lines||0; tot.words+=m.words||0; });
+  const rows=ws.slice().sort((a,b)=>(b.words||0)-(a.words||0)||(b.pages||0)-(a.pages||0));
+  let h='<div id="statsSub">Corpus overview · '+tot.works+' work'+(tot.works!==1?'s':'')+'</div>';
+  h+='<div class="ovcards">'
+    +'<div class="ovc"><div class="ovn">'+fmt(tot.works)+'</div><div class="ovl">Works</div></div>'
+    +'<div class="ovc"><div class="ovn">'+fmt(tot.pages)+'</div><div class="ovl">Pages</div></div>'
+    +'<div class="ovc"><div class="ovn">'+fmt(tot.regions)+'</div><div class="ovl">Regions</div></div>'
+    +'<div class="ovc"><div class="ovn">'+fmt(tot.lines)+'</div><div class="ovl">Lines</div></div>'
+    +'<div class="ovc"><div class="ovn">'+fmt(tot.words)+'</div><div class="ovl">Words</div></div>'
+    +'</div>';
+  h+='<div class="splbl">Per work</div>';
+  h+='<table><thead><tr><th>Work</th><th class="num">Pages</th><th class="num">Regions</th><th class="num">Lines</th><th class="num">Words</th></tr></thead><tbody>';
+  rows.forEach(m=>{ h+='<tr><td class="wn" title="'+escapeHtml(m.title)+'">'+escapeHtml(m.title)
+    +'</td><td class="num">'+fmt(m.pages)+'</td><td class="num">'+fmt(m.regions)+'</td><td class="num">'+fmt(m.lines)+'</td><td class="num">'+fmt(m.words)+'</td></tr>'; });
+  h+='</tbody><tfoot><tr class="tot"><td>Total</td><td class="num">'+fmt(tot.pages)+'</td><td class="num">'+fmt(tot.regions)+'</td><td class="num">'+fmt(tot.lines)+'</td><td class="num">'+fmt(tot.words)+'</td></tr></tfoot></table>';
+  h+='<div class="ovhint">Type in the search bar to see a term’s frequency over time and across works; separate terms with <b>/</b> to compare variants.</div>';
+  body.innerHTML=h;
+}
+let _statsToken=0;
+async function renderStats(){
+  const body=$('statsBody'), q=$('q').value.trim();
+  const terms=splitTerms($('q').value);
+
+  // ── compare mode: 2+ terms separated by "/" in the search bar ──
+  if(terms.length>1){
+    const token=++_statsToken; body.innerHTML='<div class="empty">Counting…</div>';
+    const ids=await ensureScopeLoaded(); if(token!==_statsToken) return;   // superseded
+    const series=computeTermSeriesMulti(terms, ids);
+    let h='<div id="statsSub">Comparing '+series.length+' term'+(series.length!==1?'s':'')
+      +' across '+ids.length+' work'+(ids.length!==1?'s':'')+'</div>';
+    h+=cmpLegendHtml(series);
+    h+='<div class="splbl">Frequency over time (Gregorian)</div><div class="splot">'+makeTimePlotMulti(series)+'</div>';
+    const und=series.reduce((a,s)=>a+s.undated,0);
+    if(und) h+='<div class="undated">+'+und+' occurrence'+(und!==1?'s':'')+' in works with no year</div>';
+    h+='<div class="splbl">Totals</div><table><thead><tr><th>Term</th><th class="num">Occurrences</th></tr></thead><tbody>';
+    series.forEach(s=>{ h+='<tr><td><span class="qq">'+escapeHtml(s.term)+'</span></td><td class="num">'+s.total+'</td></tr>'; });
+    h+='</tbody></table>';
+    body.innerHTML=h; return;
+  }
+
+  // ── nothing searched yet: show an overview of the whole corpus ──
+  if(!q){ renderOverview(body); return; }
+  if(!hits.length){ body.innerHTML='<div class="empty">No matches for “<span class="qq">'+escapeHtml(q)+'</span>”.</div>'; return; }
+  const {rows,tot}=computeStats(), {byYear,undated}=computeTimeSeries();
+  let h='<div id="statsSub">“<span class="qq">'+escapeHtml(q)+'</span>” · '+tot.occ+' occurrence'+(tot.occ!==1?'s':'')+' in '+rows.length+' work'+(rows.length!==1?'s':'')+'</div>';
+  h+='<div class="splbl">Frequency over time (Gregorian)</div><div class="splot">'+makeTimePlot(byYear)+'</div>';
+  if(undated) h+='<div class="undated">+'+undated+' occurrence'+(undated!==1?'s':'')+' in works with no year</div>';
+  h+='<div class="splbl">Distribution by work</div>';
+  h+='<table><thead><tr><th>Work</th><th class="num">Hits</th><th class="num">Lines</th><th class="num">Pages</th></tr></thead><tbody>';
+  rows.forEach(r=>{ h+='<tr><td class="wn" title="'+escapeHtml(r.title)+'">'+escapeHtml(r.title)+'</td><td class="num">'+r.occ+'</td><td class="num">'+r.lines+'</td><td class="num">'+r.pages+'</td></tr>'; });
+  h+='</tbody><tfoot><tr class="tot"><td>Total</td><td class="num">'+tot.occ+'</td><td class="num">'+tot.lines+'</td><td class="num">'+tot.pages+'</td></tr></tfoot></table>';
+  body.innerHTML=h;
+}
+function refreshStats(){ if($('statsPanel').classList.contains('open')) renderStats(); }
+$('statsBtn').onclick=()=>{ const p=$('statsPanel'), open=!p.classList.contains('open');
+  $('filterPanel').classList.remove('open'); $('variantPanel').classList.remove('open');
+  p.classList.toggle('open',open); $('statsBtn').classList.toggle('on',open); if(open) renderStats(); };
+$('statsClose').onclick=()=>{ $('statsPanel').classList.remove('open'); $('statsBtn').classList.remove('on'); };
+let timer; $('q').addEventListener('input',()=>{ if(browseMode) exitBrowse(); if(pairsMode) exitPairs(); clearTimeout(timer);timer=setTimeout(runSearch,260);});
+$('q').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){ if(browseMode){e.shiftKey?jumpToRegion(regIdx-1):jumpToRegion(regIdx+1);} else {e.shiftKey?jumpTo(hitIdx-1):jumpTo(hitIdx+1);} }
+  if(e.key==='Escape'){ if(browseMode){toggleBrowse();} else {$('q').value='';runSearch();} } });
+['rx','norm'].forEach(id=>$(id).addEventListener('change',runSearch));
+window.addEventListener('resize',()=>{clearTimeout(window._rt);window._rt=setTimeout(()=>{ /* keep zoom; no auto-refit */ },150);});
+
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT')return; if(!curData)return;
+  const last=curData.pages.length-1;
+  const onLine = selRect && selRect.classList.contains('line');
+  if(e.key==='ArrowDown'){ e.preventDefault(); onLine?moveLine(1):(curPage<last&&scrollToPage(curPage+1)); }
+  else if(e.key==='ArrowUp'){ e.preventDefault(); onLine?moveLine(-1):(curPage>0&&scrollToPage(curPage-1)); }
+  else if(e.key==='ArrowRight'||e.key==='PageDown'){ if(curPage<last) scrollToPage(curPage+1); }
+  else if(e.key==='ArrowLeft'||e.key==='PageUp'){ if(curPage>0) scrollToPage(curPage-1); }
+  else if(e.key==='+'||e.key==='='){zoom=Math.min(zoom+.15,6);applyZoom();}
+  else if(e.key==='-'){zoom=Math.max(zoom-.15,.1);applyZoom();}
+  else if(e.key==='0'){fitWidth();}
+});
+</script>
+</body>
+</html>

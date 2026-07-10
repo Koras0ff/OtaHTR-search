@@ -1,0 +1,23 @@
+[
+  {
+    "key": "MS_TURC_52__michigan_ms363",
+    "a": "MS_TURC_52",
+    "b": "michigan_ms363",
+    "titleA": "Divân-ı Baki Efendi",
+    "titleB": "Divân-ı Baki Efendi",
+    "file": "MS_TURC_52__michigan_ms363.js",
+    "unitsA": 2163,
+    "unitsB": 2473,
+    "rows": 4413,
+    "matched": 223,
+    "a_only": 1940,
+    "b_only": 2250,
+    "coverageA": 0.103,
+    "coverageB": 0.09,
+    "avg_sim": 0.755,
+    "by_type": {
+      "strong": 26,
+      "partial": 197
+    }
+  }
+]
